@@ -1,0 +1,147 @@
+const API_PREFIX = "/v1";
+
+/** Sans `VITE_API_BASE_URL` en dev : même origine (Vite proxy → backend). */
+function baseUrl(): string {
+  const env = import.meta.env.VITE_API_BASE_URL as string | undefined;
+  if (env) return env;
+  if (typeof window !== "undefined") return window.location.origin;
+  return "http://localhost:8000";
+}
+
+function messageFromErrorBody(data: unknown): string | null {
+  if (!data || typeof data !== "object") return null;
+  const o = data as Record<string, unknown>;
+  if (typeof o.detail === "string") return o.detail;
+  if (o.detail && typeof o.detail === "object" && "message" in o.detail) {
+    const m = (o.detail as { message?: unknown }).message;
+    if (typeof m === "string") return m;
+  }
+  if (typeof o.message === "string") return o.message;
+  return null;
+}
+
+class ApiClient {
+  private token: string | null = null;
+  private onUnauthorized?: () => void;
+
+  setToken(token: string | null) {
+    this.token = token;
+  }
+
+  setOnUnauthorized(cb: () => void) {
+    this.onUnauthorized = cb;
+  }
+
+  private async request<T>(
+    method: string,
+    path: string,
+    options?: {
+      body?: unknown;
+      params?: Record<string, string | number | undefined>;
+      raw?: boolean;
+    }
+  ): Promise<T> {
+    const url = new URL(`${API_PREFIX}${path}`, baseUrl());
+    if (options?.params) {
+      Object.entries(options.params).forEach(([k, v]) => {
+        if (v !== undefined && v !== "") url.searchParams.set(k, String(v));
+      });
+    }
+
+    const headers: Record<string, string> = {};
+    if (this.token) headers["Authorization"] = `Bearer ${this.token}`;
+    if (options?.body) headers["Content-Type"] = "application/json";
+
+    const res = await fetch(url.toString(), {
+      method,
+      headers,
+      body: options?.body ? JSON.stringify(options.body) : undefined,
+    });
+
+    if (res.status === 401) {
+      this.onUnauthorized?.();
+      throw new Error("Session expirée. Veuillez vous reconnecter.");
+    }
+
+    if (!res.ok) {
+      let body: unknown;
+      try {
+        body = await res.json();
+      } catch {
+        body = null;
+      }
+      const msg =
+        messageFromErrorBody(body) || `Erreur ${res.status} : ${res.statusText}`;
+      throw new Error(msg);
+    }
+
+    if (options?.raw) return res as unknown as T;
+    if (res.status === 204) return undefined as T;
+    return res.json();
+  }
+
+  get<T>(path: string, params?: Record<string, string | number | undefined>) {
+    return this.request<T>("GET", path, { params });
+  }
+
+  /** GET qui retourne `null` si le serveur répond 404 (ressource absente). */
+  async getOptional<T>(path: string, params?: Record<string, string | number | undefined>): Promise<T | null> {
+    const url = new URL(`${API_PREFIX}${path}`, baseUrl());
+    if (params) {
+      Object.entries(params).forEach(([k, v]) => {
+        if (v !== undefined && v !== "") url.searchParams.set(k, String(v));
+      });
+    }
+    const headers: Record<string, string> = {};
+    if (this.token) headers["Authorization"] = `Bearer ${this.token}`;
+    const res = await fetch(url.toString(), { method: "GET", headers });
+    if (res.status === 404) return null;
+    if (res.status === 401) {
+      this.onUnauthorized?.();
+      throw new Error("Session expirée. Veuillez vous reconnecter.");
+    }
+    if (!res.ok) {
+      let body: unknown;
+      try {
+        body = await res.json();
+      } catch {
+        body = null;
+      }
+      const msg =
+        messageFromErrorBody(body) || `Erreur ${res.status} : ${res.statusText}`;
+      throw new Error(msg);
+    }
+    if (res.status === 204) return null;
+    return res.json();
+  }
+
+  post<T>(path: string, body?: unknown) {
+    return this.request<T>("POST", path, { body });
+  }
+
+  patch<T>(path: string, body?: unknown) {
+    return this.request<T>("PATCH", path, { body });
+  }
+
+  delete<T>(path: string) {
+    return this.request<T>("DELETE", path);
+  }
+
+  async downloadFile(path: string, filename: string) {
+    const url = new URL(`${API_PREFIX}${path}`, baseUrl());
+    const headers: Record<string, string> = {};
+    if (this.token) headers["Authorization"] = `Bearer ${this.token}`;
+
+    const res = await fetch(url.toString(), { headers });
+    if (!res.ok) throw new Error("Erreur lors du téléchargement");
+
+    const blob = await res.blob();
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+}
+
+export const api = new ApiClient();
