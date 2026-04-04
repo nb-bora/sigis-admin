@@ -95,6 +95,17 @@ export interface Mission {
   previous_mission_id?: string | null;
 }
 
+/** PATCH /missions/{id} — champs optionnels */
+export interface UpdateMissionPayload {
+  window_start?: string | null;
+  window_end?: string | null;
+  status?: MissionStatusApi | null;
+  sms_code?: string | null;
+  designated_host_user_id?: string | null;
+  objective?: string | null;
+  plan_reference?: string | null;
+}
+
 export interface MissionOutcome {
   id: string;
   mission_id: string;
@@ -146,6 +157,12 @@ export interface ExceptionRequest {
   attachment_url?: string | null;
 }
 
+/** GET /exception-requests/summary — synthèse (sans filtre statut sur la répartition). */
+export interface ExceptionScopeSummary {
+  total: number;
+  by_status: Partial<Record<ExceptionStatusApi, number>> & Record<string, number>;
+}
+
 // ─── Reports — GET /reports/summary ───────────────────────────────────────
 
 export interface ReportSummary {
@@ -155,6 +172,12 @@ export interface ReportSummary {
   exception_requests_by_status: Partial<Record<ExceptionStatusApi, number>>;
   establishments_total: number;
   users_total: number;
+}
+
+/** GET /missions/summary — synthèse sur un périmètre (sans filtre statut sur les compteurs). */
+export interface MissionScopeSummary {
+  total: number;
+  missions_by_status: Partial<Record<MissionStatusApi, number>> & Record<string, number>;
 }
 
 // ─── Audit — GET /audit-logs ─────────────────────────────────────────────
@@ -313,6 +336,12 @@ export interface CreateEstablishmentPayload {
 
 export interface CreateEstablishmentResponse {
   establishment_id: string;
+}
+
+/** GET /establishments/summary — synthèse (sans filtre type sur la répartition). */
+export interface EstablishmentScopeSummary {
+  total: number;
+  by_establishment_type: Record<string, number>;
 }
 
 // ─── POST /missions — création ─────────────────────────────────────────────

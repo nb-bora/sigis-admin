@@ -1,13 +1,24 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import type { Mission, MissionOutcome, SiteVisit, ExceptionRequest, MissionStatusApi } from "@/types/api";
+import type {
+  Mission,
+  MissionOutcome,
+  SiteVisit,
+  ExceptionRequest,
+  MissionStatusApi,
+  Establishment,
+  UpdateMissionPayload,
+} from "@/types/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import {
   ArrowLeft,
@@ -19,8 +30,15 @@ import {
   UserCog,
   QrCode,
   Loader2,
+  ClipboardList,
+  Building2,
+  User,
+  CalendarRange,
+  Pencil,
+  MessageSquare,
 } from "lucide-react";
-import { useState } from "react";
+import { isoToLocalDatetime, localDatetimeToIso } from "@/lib/datetime";
+import { cn } from "@/lib/utils";
 
 const statusLabels: Record<MissionStatusApi, string> = {
   draft: "Brouillon",
@@ -28,6 +46,17 @@ const statusLabels: Record<MissionStatusApi, string> = {
   in_progress: "En cours",
   completed: "Terminée",
   cancelled: "Annulée",
+};
+
+const statusBadgeVariant: Record<
+  MissionStatusApi,
+  "secondary" | "default" | "outline" | "destructive"
+> = {
+  draft: "secondary",
+  planned: "outline",
+  in_progress: "default",
+  completed: "outline",
+  cancelled: "destructive",
 };
 
 const visitStatusLabels: Record<string, string> = {
@@ -47,6 +76,10 @@ const excStatusBadge: Record<string, string> = {
   escalated: "status-badge-neutral",
 };
 
+function formatDt(iso: string) {
+  return new Date(iso).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" });
+}
+
 export default function MissionDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -60,11 +93,38 @@ export default function MissionDetailPage() {
   const [complianceLevel, setComplianceLevel] = useState("");
   const [hostQrToken, setHostQrToken] = useState<string | null>(null);
 
+  const [editWindowStart, setEditWindowStart] = useState("");
+  const [editWindowEnd, setEditWindowEnd] = useState("");
+  const [editObjective, setEditObjective] = useState("");
+  const [editPlanRef, setEditPlanRef] = useState("");
+  const [editSms, setEditSms] = useState("");
+  const [editDesignatedHost, setEditDesignatedHost] = useState("");
+
   const { data: mission, isLoading } = useQuery({
     queryKey: ["mission", id],
     queryFn: () => api.get<Mission>(`/missions/${id}`),
     enabled: !!id,
   });
+
+  const { data: establishment } = useQuery({
+    queryKey: ["establishment", mission?.establishment_id],
+    queryFn: () => api.get<Establishment>(`/establishments/${mission!.establishment_id}`),
+    enabled: !!mission?.establishment_id && hasPermission("ESTABLISHMENT_READ"),
+  });
+
+  useEffect(() => {
+    setEditStep(0);
+  }, [id]);
+
+  useEffect(() => {
+    if (!mission) return;
+    setEditWindowStart(isoToLocalDatetime(mission.window_start));
+    setEditWindowEnd(isoToLocalDatetime(mission.window_end));
+    setEditObjective(mission.objective ?? "");
+    setEditPlanRef(mission.plan_reference ?? "");
+    setEditSms(mission.sms_code ?? "");
+    setEditDesignatedHost(mission.designated_host_user_id ?? "");
+  }, [mission]);
 
   const { data: outcome, isSuccess: outcomeResolved } = useQuery({
     queryKey: ["mission-outcome", id],
@@ -96,6 +156,15 @@ export default function MissionDetailPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const updateMutation = useMutation({
+    mutationFn: (body: UpdateMissionPayload) => api.patch<Mission>(`/missions/${id}`, body),
+    onSuccess: () => {
+      toast.success("Modifications enregistrées");
+      queryClient.invalidateQueries({ queryKey: ["mission", id] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const cancelMutation = useMutation({
     mutationFn: () => api.post(`/missions/${id}/cancel`, { reason: cancelReason }),
     onSuccess: () => {
@@ -112,7 +181,7 @@ export default function MissionDetailPage() {
         new_inspector_id: newInspectorId.trim(),
       }),
     onSuccess: (m) => {
-      toast.success("Réaffectation effectuée — ouverture de la nouvelle mission.");
+      toast.success("Réaffectation effectuée");
       queryClient.invalidateQueries({ queryKey: ["missions"] });
       navigate(`/missions/${m.id}`);
     },
@@ -144,208 +213,364 @@ export default function MissionDetailPage() {
       setHostQrToken(data.host_qr_jwt);
       try {
         await navigator.clipboard.writeText(data.host_qr_jwt);
-        toast.success(`JWT copié (expire ~${data.expires_in_minutes} min)`);
+        toast.success(`Jeton copié (expire ~${data.expires_in_minutes} min)`);
       } catch {
-        toast.success("JWT obtenu — copiez-le depuis le champ ci-dessous.");
+        toast.success("Jeton affiché ci-dessous — copiez-le manuellement.");
       }
     },
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const handleSaveEdits = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!mission) return;
+    try {
+      const ws = localDatetimeToIso(editWindowStart);
+      const we = localDatetimeToIso(editWindowEnd);
+      if (new Date(we) <= new Date(ws)) {
+        toast.error("La fin de fenêtre doit être après le début.");
+        return;
+      }
+      const body: UpdateMissionPayload = {
+        window_start: ws,
+        window_end: we,
+        objective: editObjective.trim() || null,
+        plan_reference: editPlanRef.trim() || null,
+        sms_code: editSms.trim() || null,
+        designated_host_user_id: editDesignatedHost.trim() || null,
+      };
+      updateMutation.mutate(body);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Dates invalides");
+    }
+  };
+
   if (isLoading) {
     return (
-      <div className="space-y-4 animate-fade-in">
-        <Skeleton className="h-8 w-48" />
-        <Skeleton className="h-64 w-full rounded-xl" />
+      <div className="animate-fade-in mx-auto max-w-4xl space-y-6">
+        <Skeleton className="h-10 w-40 rounded-lg" />
+        <Skeleton className="h-40 w-full rounded-2xl" />
+        <Skeleton className="h-64 w-full rounded-2xl" />
       </div>
     );
   }
 
   if (!mission) {
-    return <p className="text-muted-foreground">Mission introuvable.</p>;
+    return (
+      <Card className="mx-auto max-w-lg rounded-2xl border-dashed">
+        <CardContent className="py-12 text-center text-muted-foreground">Mission introuvable.</CardContent>
+      </Card>
+    );
   }
 
-  const statusBadgeColor: Record<MissionStatusApi, string> = {
-    draft: "status-badge-neutral",
-    planned: "status-badge-info",
-    in_progress: "status-badge-info",
-    completed: "status-badge-success",
-    cancelled: "status-badge-danger",
-  };
-
-  const canCancel =
-    mission.status !== "cancelled" && mission.status !== "completed";
-
+  const canCancel = mission.status !== "cancelled" && mission.status !== "completed";
   const canReassign =
-    hasPermission("MISSION_REASSIGN") &&
-    mission.status !== "completed" &&
-    mission.status !== "cancelled";
-
+    hasPermission("MISSION_REASSIGN") && mission.status !== "completed" && mission.status !== "cancelled";
   const canWriteOutcome =
     hasPermission("MISSION_OUTCOME_WRITE") && outcomeResolved && outcome === null;
+  const canEdit =
+    hasPermission("MISSION_UPDATE") && mission.status !== "cancelled" && mission.status !== "completed";
+
+  const title = mission.objective?.trim()
+    ? mission.objective.length > 120
+      ? `${mission.objective.slice(0, 120)}…`
+      : mission.objective
+    : `Mission ${mission.id.slice(0, 8)}…`;
 
   return (
-    <div className="animate-fade-in space-y-6">
-      <div className="flex items-center gap-3">
-        <Button variant="ghost" size="sm" onClick={() => navigate("/missions")}>
-          <ArrowLeft className="w-4 h-4 mr-1" /> Retour
-        </Button>
-      </div>
+    <div className="animate-fade-in mx-auto max-w-4xl space-y-8">
+      <Button
+        variant="ghost"
+        size="sm"
+        className="-ml-2 gap-1 text-muted-foreground hover:text-foreground"
+        onClick={() => navigate("/missions")}
+      >
+        <ArrowLeft className="h-4 w-4" aria-hidden />
+        Retour aux missions
+      </Button>
 
-      <div className="bg-card rounded-xl border border-border p-6">
-        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-          <div>
-            <h1 className="text-xl font-semibold text-foreground">
-              {mission.objective?.trim()
-                ? mission.objective
-                : `Mission ${mission.id.slice(0, 8)}`}
-            </h1>
-            <p className="text-sm text-muted-foreground mt-1">ID : {mission.id}</p>
+      <header className="relative overflow-hidden rounded-2xl border border-primary/10 bg-gradient-to-br from-primary/[0.07] via-card to-sky-500/[0.05] px-6 py-7 shadow-sm sm:px-8">
+        <div
+          className="pointer-events-none absolute inset-0 opacity-[0.35] [background-image:radial-gradient(circle_at_1px_1px,hsl(var(--primary)/0.12)_1px,transparent_0)] [background-size:20px_20px]"
+          aria-hidden
+        />
+        <div className="relative flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex gap-4">
+            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-lg shadow-primary/20">
+              <ClipboardList className="h-7 w-7" strokeWidth={1.75} aria-hidden />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-medium uppercase tracking-widest text-primary/80">Fiche mission</p>
+              <h1 className="mt-1 text-xl font-bold leading-snug text-foreground sm:text-2xl">{title}</h1>
+              <p className="mt-2 font-mono text-xs text-muted-foreground">ID · {mission.id}</p>
+            </div>
           </div>
-          <span className={statusBadgeColor[mission.status]}>{statusLabels[mission.status]}</span>
+          <Badge variant={statusBadgeVariant[mission.status]} className="shrink-0 px-3 py-1 text-sm font-medium">
+            {statusLabels[mission.status]}
+          </Badge>
         </div>
+      </header>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-6 text-sm">
-          <div>
-            <span className="text-muted-foreground">Inspecteur</span>
-            <p className="font-medium text-foreground font-mono text-xs mt-1">
-              {mission.inspector_id}
-            </p>
+      <Card className="overflow-hidden rounded-2xl border-border/80 shadow-md">
+        <CardHeader className="border-b border-border/60 bg-muted/25">
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <MapPin className="h-5 w-5 text-primary" strokeWidth={1.75} aria-hidden />
+            Informations
+          </CardTitle>
+          <CardDescription>Établissement, inspecteur et créneau</CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-6 pt-6 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="rounded-xl border border-border/60 bg-muted/15 p-4">
+            <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              <Building2 className="h-3.5 w-3.5" aria-hidden />
+              Établissement
+            </div>
+            <p className="mt-2 font-medium text-foreground">{establishment?.name ?? "—"}</p>
+            <p className="mt-1 font-mono text-[11px] text-muted-foreground">{mission.establishment_id}</p>
           </div>
-          <div>
-            <span className="text-muted-foreground">Établissement</span>
-            <p className="font-medium text-foreground font-mono text-xs mt-1">
-              {mission.establishment_id}
-            </p>
+          <div className="rounded-xl border border-border/60 bg-muted/15 p-4">
+            <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              <User className="h-3.5 w-3.5" aria-hidden />
+              Inspecteur
+            </div>
+            <p className="mt-2 break-all font-mono text-xs text-foreground">{mission.inspector_id}</p>
           </div>
-          <div>
-            <span className="text-muted-foreground">Fenêtre horaire</span>
-            <p className="font-medium text-foreground">
-              {new Date(mission.window_start).toLocaleString("fr-FR")} —{" "}
-              {new Date(mission.window_end).toLocaleString("fr-FR")}
+          <div className="rounded-xl border border-border/60 bg-muted/15 p-4 sm:col-span-2 lg:col-span-1">
+            <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              <CalendarRange className="h-3.5 w-3.5" aria-hidden />
+              Fenêtre horaire
+            </div>
+            <p className="mt-2 text-sm leading-relaxed text-foreground">
+              {formatDt(mission.window_start)}
+              <span className="text-muted-foreground"> → </span>
+              {formatDt(mission.window_end)}
             </p>
           </div>
           {mission.plan_reference && (
-            <div>
-              <span className="text-muted-foreground">Réf. plan</span>
-              <p className="font-medium text-foreground">{mission.plan_reference}</p>
+            <div className="rounded-xl border border-border/60 bg-muted/15 p-4">
+              <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Réf. plan</span>
+              <p className="mt-2 font-medium">{mission.plan_reference}</p>
             </div>
           )}
           {mission.requires_approval && (
-            <div>
-              <span className="text-muted-foreground">Validation</span>
-              <p className="font-medium text-foreground">Requise avant exécution</p>
+            <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4">
+              <span className="text-xs font-medium uppercase tracking-wide text-amber-800 dark:text-amber-200">
+                Validation
+              </span>
+              <p className="mt-2 text-sm text-foreground">Approbation requise avant exécution</p>
             </div>
           )}
-        </div>
+        </CardContent>
+      </Card>
 
-        <div className="flex flex-wrap gap-2 mt-6 pt-4 border-t border-border">
+      {canEdit && (
+        <Card className="overflow-hidden rounded-2xl border-border/80 shadow-md">
+          <CardHeader className="border-b border-border/60 bg-muted/25">
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Pencil className="h-5 w-5 text-primary" strokeWidth={1.75} aria-hidden />
+              Modifier la mission
+            </CardTitle>
+            <CardDescription>
+              Report de fenêtre, objectif, référence plan, code SMS ou hôte désigné (selon vos droits).
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="pt-6">
+            <form onSubmit={handleSaveEdits} className="space-y-5">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-ws">Début de fenêtre</Label>
+                  <Input
+                    id="edit-ws"
+                    type="datetime-local"
+                    value={editWindowStart}
+                    onChange={(e) => setEditWindowStart(e.target.value)}
+                    className="h-11 rounded-xl font-mono text-sm"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-we">Fin de fenêtre</Label>
+                  <Input
+                    id="edit-we"
+                    type="datetime-local"
+                    value={editWindowEnd}
+                    onChange={(e) => setEditWindowEnd(e.target.value)}
+                    className="h-11 rounded-xl font-mono text-sm"
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-obj">Objectif</Label>
+                <Textarea
+                  id="edit-obj"
+                  value={editObjective}
+                  onChange={(e) => setEditObjective(e.target.value)}
+                  rows={4}
+                  maxLength={4000}
+                  className="min-h-[100px] rounded-xl"
+                />
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-plan">Référence plan</Label>
+                  <Input
+                    id="edit-plan"
+                    value={editPlanRef}
+                    onChange={(e) => setEditPlanRef(e.target.value)}
+                    maxLength={256}
+                    className="h-11 rounded-xl"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-sms" className="inline-flex items-center gap-1.5">
+                    <MessageSquare className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
+                    Code SMS
+                  </Label>
+                  <Input
+                    id="edit-sms"
+                    value={editSms}
+                    onChange={(e) => setEditSms(e.target.value)}
+                    maxLength={32}
+                    className="h-11 rounded-xl"
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-host">Hôte désigné (UUID)</Label>
+                <Input
+                  id="edit-host"
+                  value={editDesignatedHost}
+                  onChange={(e) => setEditDesignatedHost(e.target.value)}
+                  className="h-11 rounded-xl font-mono text-xs"
+                  placeholder="Vide = comportement par défaut"
+                />
+              </div>
+              <div className="flex justify-end pt-2">
+                <Button
+                  type="submit"
+                  className="h-11 min-w-[180px] rounded-xl"
+                  disabled={updateMutation.isPending}
+                >
+                  {updateMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />}
+                  Enregistrer les modifications
+                </Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+      )}
+
+      <Card className="overflow-hidden rounded-2xl border-border/80 shadow-sm">
+        <CardHeader className="border-b border-border/60 bg-muted/20">
+          <CardTitle className="text-base">Actions</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-wrap gap-2 pt-6">
           {hasPermission("MISSION_APPROVE") && mission.status === "draft" && (
-            <Button
-              onClick={() => approveMutation.mutate()}
-              disabled={approveMutation.isPending}
-              size="sm"
-            >
-              <CheckCircle2 className="w-4 h-4 mr-1" /> Valider (passer en planifiée)
+            <Button onClick={() => approveMutation.mutate()} disabled={approveMutation.isPending} className="rounded-xl">
+              <CheckCircle2 className="mr-2 h-4 w-4" aria-hidden />
+              Valider (planifier)
             </Button>
           )}
           {hasPermission("MISSION_READ") && (
             <Button
               variant="outline"
-              size="sm"
+              className="rounded-xl"
               onClick={() => hostQrMutation.mutate()}
               disabled={hostQrMutation.isPending}
             >
               {hostQrMutation.isPending ? (
-                <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
               ) : (
-                <QrCode className="w-4 h-4 mr-1" />
+                <QrCode className="mr-2 h-4 w-4" aria-hidden />
               )}
-              JWT QR hôte
+              Jeton QR hôte
             </Button>
           )}
           {hasPermission("MISSION_CANCEL") && canCancel && (
             <Button
               variant="outline"
-              size="sm"
+              className="rounded-xl border-destructive/30 text-destructive hover:bg-destructive/10"
               onClick={() => setShowCancel(!showCancel)}
-              className="text-destructive border-destructive/30 hover:bg-destructive/10"
             >
-              <XCircle className="w-4 h-4 mr-1" /> Annuler
+              <XCircle className="mr-2 h-4 w-4" aria-hidden />
+              Annuler la mission
             </Button>
           )}
-        </div>
-
+        </CardContent>
         {hostQrToken && (
-          <div className="mt-4 p-3 rounded-lg bg-muted/50 border border-border">
-            <Label className="text-xs text-muted-foreground">host_qr_jwt</Label>
-            <p className="font-mono text-xs break-all mt-1">{hostQrToken}</p>
-          </div>
+          <CardContent className="border-t border-border/60 bg-muted/20 pt-4">
+            <Label className="text-xs text-muted-foreground">Jeton copié dans le presse-papiers</Label>
+            <p className="mt-2 break-all font-mono text-xs">{hostQrToken}</p>
+          </CardContent>
         )}
-
         {showCancel && (
-          <div className="mt-4 p-4 bg-muted rounded-lg space-y-3">
+          <CardContent className="border-t border-border/60 space-y-3">
             <Textarea
               placeholder="Motif d'annulation…"
               value={cancelReason}
               onChange={(e) => setCancelReason(e.target.value)}
+              className="rounded-xl"
             />
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <Button
-                size="sm"
                 variant="destructive"
+                className="rounded-xl"
                 onClick={() => cancelMutation.mutate()}
                 disabled={!cancelReason.trim() || cancelMutation.isPending}
               >
-                Confirmer l'annulation
+                Confirmer l&apos;annulation
               </Button>
-              <Button size="sm" variant="ghost" onClick={() => setShowCancel(false)}>
+              <Button variant="ghost" className="rounded-xl" onClick={() => setShowCancel(false)}>
                 Fermer
               </Button>
             </div>
-          </div>
+          </CardContent>
         )}
-      </div>
+      </Card>
 
       {canReassign && (
-        <div className="bg-card rounded-xl border border-border p-6">
-          <h2 className="text-base font-semibold text-foreground mb-4 flex items-center gap-2">
-            <UserCog className="w-4 h-4 text-primary" /> Réaffectation (POST /reassign)
-          </h2>
-          <p className="text-sm text-muted-foreground mb-3">
-            Crée une nouvelle mission planifiée et annule l&apos;actuelle avec motif « Réaffectation ».
-          </p>
-          <div className="flex flex-col sm:flex-row gap-3 sm:items-end">
-            <div className="space-y-2 flex-1">
+        <Card className="overflow-hidden rounded-2xl border-border/80 shadow-md">
+          <CardHeader className="border-b border-border/60 bg-muted/25">
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <UserCog className="h-5 w-5 text-primary" aria-hidden />
+              Réaffectation
+            </CardTitle>
+            <CardDescription>
+              Crée une nouvelle mission planifiée et clôt l&apos;actuelle (motif « Réaffectation »).
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-4 pt-6 sm:flex-row sm:items-end">
+            <div className="min-w-0 flex-1 space-y-2">
               <Label htmlFor="new-insp">UUID du nouvel inspecteur</Label>
               <Input
                 id="new-insp"
                 placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
                 value={newInspectorId}
                 onChange={(e) => setNewInspectorId(e.target.value)}
-                className="font-mono text-xs"
+                className="h-11 rounded-xl font-mono text-xs"
               />
             </div>
             <Button
-              size="sm"
+              className="h-11 shrink-0 rounded-xl"
               onClick={() => reassignMutation.mutate()}
-              disabled={
-                reassignMutation.isPending || !/^[0-9a-f-]{36}$/i.test(newInspectorId.trim())
-              }
+              disabled={reassignMutation.isPending || !/^[0-9a-f-]{36}$/i.test(newInspectorId.trim())}
             >
-              {reassignMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              {reassignMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />}
               Réaffecter
             </Button>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
       )}
 
       {canWriteOutcome && (
-        <div className="bg-card rounded-xl border border-border p-6">
-          <h2 className="text-base font-semibold text-foreground mb-4 flex items-center gap-2">
-            <FileText className="w-4 h-4 text-primary" /> Soumettre le rapport (POST /outcome)
-          </h2>
-          <div className="space-y-3 max-w-2xl">
+        <Card className="overflow-hidden rounded-2xl border-border/80 shadow-md">
+          <CardHeader className="border-b border-border/60 bg-muted/25">
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <FileText className="h-5 w-5 text-primary" aria-hidden />
+              Rapport de mission
+            </CardTitle>
+            <CardDescription>Synthèse après clôture terrain</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4 pt-6">
             <div className="space-y-2">
               <Label htmlFor="osum">Résumé</Label>
               <Textarea
@@ -354,6 +579,7 @@ export default function MissionDetailPage() {
                 onChange={(e) => setOutcomeSummary(e.target.value)}
                 rows={4}
                 placeholder="Synthèse de la mission…"
+                className="rounded-xl"
               />
             </div>
             <div className="space-y-2">
@@ -363,112 +589,110 @@ export default function MissionDetailPage() {
                 value={outcomeNotes}
                 onChange={(e) => setOutcomeNotes(e.target.value)}
                 rows={3}
+                className="rounded-xl"
               />
             </div>
-            <div className="space-y-2 max-w-xs">
+            <div className="max-w-xs space-y-2">
               <Label htmlFor="ocomp">Niveau de conformité (optionnel)</Label>
               <Input
                 id="ocomp"
                 value={complianceLevel}
                 onChange={(e) => setComplianceLevel(e.target.value)}
                 placeholder="ex. satisfactory"
+                className="h-11 rounded-xl"
               />
             </div>
             <Button
-              size="sm"
+              className="rounded-xl"
               onClick={() => outcomeMutation.mutate()}
               disabled={outcomeMutation.isPending || !outcomeSummary.trim()}
             >
-              {outcomeMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              {outcomeMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />}
               Enregistrer le rapport
             </Button>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
       )}
 
       {visit && (
-        <div className="bg-card rounded-xl border border-border p-6">
-          <h2 className="text-base font-semibold text-foreground mb-4 flex items-center gap-2">
-            <MapPin className="w-4 h-4 text-primary" /> Visite terrain
-          </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+        <Card className="overflow-hidden rounded-2xl border-border/80 shadow-md">
+          <CardHeader className="border-b border-border/60 bg-muted/25">
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <MapPin className="h-5 w-5 text-primary" aria-hidden />
+              Visite terrain
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-4 pt-6 sm:grid-cols-2">
             <div>
-              <span className="text-muted-foreground">Statut visite</span>
-              <p className="font-medium mt-1">
-                {visitStatusLabels[visit.status] ?? visit.status}
-              </p>
+              <span className="text-xs font-medium uppercase text-muted-foreground">Statut visite</span>
+              <p className="mt-1 font-medium">{visitStatusLabels[visit.status] ?? visit.status}</p>
             </div>
             {visit.host_validation_mode && (
               <div>
-                <span className="text-muted-foreground">Mode validation hôte</span>
-                <p className="font-medium mt-1">{visit.host_validation_mode}</p>
+                <span className="text-xs font-medium uppercase text-muted-foreground">Mode hôte</span>
+                <p className="mt-1 font-medium">{visit.host_validation_mode}</p>
               </div>
             )}
             <div>
-              <span className="text-muted-foreground">Check-in</span>
-              <p className="font-medium">
-                {visit.checked_in_at
-                  ? new Date(visit.checked_in_at).toLocaleString("fr-FR")
-                  : "—"}
-              </p>
+              <span className="text-xs font-medium uppercase text-muted-foreground">Check-in</span>
+              <p className="mt-1">{visit.checked_in_at ? formatDt(visit.checked_in_at) : "—"}</p>
             </div>
             <div>
-              <span className="text-muted-foreground">Check-out</span>
-              <p className="font-medium">
-                {visit.checked_out_at
-                  ? new Date(visit.checked_out_at).toLocaleString("fr-FR")
-                  : "—"}
-              </p>
+              <span className="text-xs font-medium uppercase text-muted-foreground">Check-out</span>
+              <p className="mt-1">{visit.checked_out_at ? formatDt(visit.checked_out_at) : "—"}</p>
             </div>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
       )}
 
       {outcome && (
-        <div className="bg-card rounded-xl border border-border p-6">
-          <h2 className="text-base font-semibold text-foreground mb-4 flex items-center gap-2">
-            <FileText className="w-4 h-4 text-primary" /> Rapport de mission
-          </h2>
-          <div className="space-y-3 text-sm">
+        <Card className="overflow-hidden rounded-2xl border-border/80 shadow-md">
+          <CardHeader className="border-b border-border/60 bg-muted/25">
+            <CardTitle className="text-lg">Rapport enregistré</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4 pt-6 text-sm">
             <div>
               <span className="text-muted-foreground">Résumé</span>
-              <p className="text-foreground mt-1 whitespace-pre-wrap">{outcome.summary}</p>
+              <p className="mt-2 whitespace-pre-wrap text-foreground">{outcome.summary}</p>
             </div>
             {outcome.notes && (
               <div>
                 <span className="text-muted-foreground">Notes</span>
-                <p className="text-foreground mt-1 whitespace-pre-wrap">{outcome.notes}</p>
+                <p className="mt-2 whitespace-pre-wrap">{outcome.notes}</p>
               </div>
             )}
             {outcome.compliance_level && (
               <div>
-                <span className="text-muted-foreground">Niveau de conformité</span>
-                <p className="text-foreground mt-1">{outcome.compliance_level}</p>
+                <span className="text-muted-foreground">Conformité</span>
+                <p className="mt-2">{outcome.compliance_level}</p>
               </div>
             )}
-          </div>
-        </div>
+          </CardContent>
+        </Card>
       )}
 
       {exceptions && exceptions.length > 0 && (
-        <div className="bg-card rounded-xl border border-border p-6">
-          <h2 className="text-base font-semibold text-foreground mb-4 flex items-center gap-2">
-            <AlertTriangle className="w-4 h-4 text-warning" /> Signalements ({exceptions.length})
-          </h2>
-          <div className="space-y-2">
+        <Card className="overflow-hidden rounded-2xl border-border/80 shadow-md">
+          <CardHeader className="border-b border-border/60 bg-muted/25">
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <AlertTriangle className="h-5 w-5 text-amber-600" aria-hidden />
+              Signalements ({exceptions.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="divide-y divide-border/60 p-0">
             {exceptions.map((ex) => (
               <div
                 key={ex.id}
-                className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 py-2 border-b border-border last:border-0 text-sm"
+                className="flex flex-col gap-2 px-6 py-4 sm:flex-row sm:items-center sm:justify-between"
               >
-                <span className="text-foreground line-clamp-2">{ex.message}</span>
-                <span className={`shrink-0 ${excStatusBadge[ex.status] ?? "status-badge-neutral"}`}>
+                <span className="text-sm text-foreground">{ex.message}</span>
+                <span className={cn("shrink-0", excStatusBadge[ex.status] ?? "status-badge-neutral")}>
                   {ex.status}
                 </span>
               </div>
             ))}
-          </div>
-        </div>
+          </CardContent>
+        </Card>
       )}
     </div>
   );

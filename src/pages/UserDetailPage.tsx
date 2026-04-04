@@ -8,6 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import {
   Select,
   SelectContent,
@@ -15,35 +17,35 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { ArrowLeft, Loader2, UserRound, Shield, Calendar } from "lucide-react";
 import { toast } from "sonner";
 import { useState, useEffect } from "react";
+import { ROLE_ORDER, roleBadge, roleDescription, roleLabel } from "@/lib/rbac";
+import { useLocale } from "@/lib/locale";
 
-const ROLES: Role[] = [
-  "SUPER_ADMIN",
-  "NATIONAL_ADMIN",
-  "REGIONAL_SUPERVISOR",
-  "INSPECTOR",
-  "HOST",
-];
-
-const roleLabels: Record<Role, string> = {
-  SUPER_ADMIN: "Super admin",
-  NATIONAL_ADMIN: "Admin national",
-  REGIONAL_SUPERVISOR: "Superviseur régional",
-  INSPECTOR: "Inspecteur",
-  HOST: "Hôte",
-};
+const ROLES: Role[] = ROLE_ORDER;
 
 export default function UserDetailPage() {
+  const { t, locale } = useLocale();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user: authUser, hasRole } = useAuth();
+
+  const formatCreatedAt = (iso: string): string => {
+    if (!iso) return "—";
+    try {
+      return new Date(iso).toLocaleString(locale === "fr" ? "fr-FR" : "en-GB", {
+        dateStyle: "long",
+        timeStyle: "short",
+      });
+    } catch {
+      return iso;
+    }
+  };
   const queryClient = useQueryClient();
 
   const isAdmin = hasRole("SUPER_ADMIN") || hasRole("NATIONAL_ADMIN");
   const isSelf = authUser?.userId === id;
-  /** Aligné backend : propre profil ou admin national / super. */
   const canEditProfile = isSelf || isAdmin;
   const canEditAdminFields = isAdmin;
 
@@ -85,7 +87,7 @@ export default function UserDetailPage() {
       return api.patch<User>(`/users/${id}`, body);
     },
     onSuccess: () => {
-      toast.success("Profil mis à jour");
+      toast.success(t("userDetail.saveSuccess"));
       queryClient.invalidateQueries({ queryKey: ["user", id] });
       queryClient.invalidateQueries({ queryKey: ["users"] });
     },
@@ -94,9 +96,9 @@ export default function UserDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="space-y-4 max-w-lg animate-fade-in">
-        <Skeleton className="h-8 w-48" />
-        <Skeleton className="h-64 w-full rounded-xl" />
+      <div className="mx-auto max-w-2xl space-y-4 animate-fade-in">
+        <Skeleton className="h-8 w-48 rounded-lg" />
+        <Skeleton className="h-64 w-full rounded-2xl" />
       </div>
     );
   }
@@ -104,85 +106,148 @@ export default function UserDetailPage() {
   if (isError) {
     return (
       <div className="animate-fade-in max-w-lg">
-        <p className="text-destructive text-sm">{error instanceof Error ? error.message : "Erreur"}</p>
+        <p className="text-sm text-destructive">{error instanceof Error ? error.message : t("userDetail.errorGeneric")}</p>
       </div>
     );
   }
 
   if (!u) {
-    return <p className="text-muted-foreground">Utilisateur introuvable.</p>;
+    return <p className="text-muted-foreground">{t("userDetail.notFound")}</p>;
   }
 
   return (
-    <div className="animate-fade-in max-w-lg">
-      <Button variant="ghost" size="sm" className="mb-6" onClick={() => navigate("/utilisateurs")}>
-        <ArrowLeft className="w-4 h-4 mr-1" /> Retour
+    <div className="animate-fade-in mx-auto max-w-2xl space-y-8">
+      <Button
+        variant="ghost"
+        size="sm"
+        className="-ml-2 gap-1 text-muted-foreground hover:text-foreground"
+        onClick={() => navigate("/utilisateurs")}
+      >
+        <ArrowLeft className="h-4 w-4" aria-hidden />
+        {t("userDetail.back")}
       </Button>
 
-      <div className="page-header">
-        <h1 className="page-title">{u.full_name}</h1>
-        <p className="page-description">GET/PATCH /v1/users/{"{"}id{"}"}</p>
-      </div>
-
-      <div className="bg-card rounded-xl border border-border p-6 space-y-4">
-        <div className="space-y-2">
-          <Label>E-mail</Label>
-          <Input value={u.email} disabled className="bg-muted/50" />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="fn">Nom complet</Label>
-          <Input
-            id="fn"
-            value={fullName}
-            onChange={(e) => setFullName(e.target.value)}
-            disabled={!canEditProfile}
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="ph">Téléphone (E.164)</Label>
-          <Input
-            id="ph"
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-            disabled={!canEditProfile}
-          />
-        </div>
-
-        {canEditAdminFields && (
-          <>
-            <div className="flex items-center justify-between rounded-lg border border-border p-4">
-              <Label htmlFor="act">Compte actif</Label>
-              <Switch id="act" checked={active} onCheckedChange={setActive} />
+      <header className="relative overflow-hidden rounded-2xl border border-primary/10 bg-gradient-to-br from-primary/[0.06] via-card to-sky-500/[0.05] px-6 py-7 shadow-sm sm:px-8">
+        <div
+          className="pointer-events-none absolute inset-0 opacity-[0.35] [background-image:radial-gradient(circle_at_1px_1px,hsl(var(--primary)/0.12)_1px,transparent_0)] [background-size:20px_20px]"
+          aria-hidden
+        />
+        <div className="relative flex gap-4">
+          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-lg shadow-primary/20">
+            <UserRound className="h-7 w-7" strokeWidth={1.75} aria-hidden />
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs font-medium uppercase tracking-widest text-primary/80">{t("userDetail.eyebrow")}</p>
+            <h1 className="mt-0.5 text-2xl font-bold tracking-tight text-foreground sm:text-3xl">{u.full_name}</h1>
+            <p className="mt-2 break-all font-mono text-xs text-muted-foreground">{u.email}</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Badge variant="secondary" className="font-normal">
+                {roleLabel(u.role, t)}
+              </Badge>
+              <Badge variant={u.is_active ? "outline" : "destructive"} className="font-normal">
+                {u.is_active ? t("userDetail.active") : t("userDetail.inactive")}
+              </Badge>
             </div>
-            <div className="space-y-2">
-              <Label>Rôle</Label>
-              <Select value={role} onValueChange={(v) => setRole(v as Role)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {ROLES.map((r) => (
-                    <SelectItem key={r} value={r}>
-                      {roleLabels[r]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+          </div>
+        </div>
+      </header>
+
+      <Card className="overflow-hidden rounded-2xl border-border/80 shadow-md">
+        <CardHeader className="border-b border-border/60 bg-muted/25">
+          <CardTitle className="text-lg">{t("userDetail.identityTitle")}</CardTitle>
+          <CardDescription>{t("userDetail.identityDesc")}</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-5 pt-6">
+          <div className="space-y-2">
+            <Label>{t("userDetail.email")}</Label>
+            <Input value={u.email} disabled className="h-11 rounded-xl bg-muted/40 font-mono text-sm" />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="fn">{t("userDetail.fullName")}</Label>
+            <Input
+              id="fn"
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              disabled={!canEditProfile}
+              className="h-11 rounded-xl"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="ph">{t("userDetail.phone")}</Label>
+            <Input
+              id="ph"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              disabled={!canEditProfile}
+              className="h-11 rounded-xl"
+            />
+          </div>
+
+          <div className="flex items-start gap-3 rounded-xl border border-border/60 bg-muted/10 p-4">
+            <Calendar className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+            <div>
+              <p className="text-sm font-medium text-foreground">{t("userDetail.createdPrefix")}</p>
+              <p className="mt-0.5 text-sm text-muted-foreground">{formatCreatedAt(u.created_at)}</p>
             </div>
-          </>
-        )}
+          </div>
 
-        {canEditProfile && (
-          <Button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
-            {saveMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-            Enregistrer
-          </Button>
-        )}
+          {canEditAdminFields && (
+            <>
+              <div className="flex items-center justify-between rounded-xl border border-border/60 bg-muted/10 p-4">
+                <div>
+                  <Label htmlFor="act" className="text-base">
+                    {t("userDetail.accountActive")}
+                  </Label>
+                  <p className="mt-0.5 text-xs text-muted-foreground">{t("userDetail.accountActiveHint")}</p>
+                </div>
+                <Switch id="act" checked={active} onCheckedChange={setActive} />
+              </div>
 
-        {!canEditProfile && (
-          <p className="text-sm text-muted-foreground">Lecture seule — vous ne pouvez pas modifier ce profil.</p>
-        )}
-      </div>
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <Shield className="h-4 w-4 text-primary" aria-hidden />
+                  <Label className="text-base font-semibold">{t("userDetail.roleSigis")}</Label>
+                </div>
+                <Select value={role} onValueChange={(v) => setRole(v as Role)}>
+                  <SelectTrigger className="h-11 rounded-xl">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ROLES.map((r) => (
+                      <SelectItem key={r} value={r}>
+                        <span className="font-medium">{roleLabel(r, t)}</span>
+                        <span className="ml-2 text-muted-foreground">({r})</span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <div className="rounded-xl border border-border/60 bg-muted/15 p-4 text-sm leading-relaxed text-muted-foreground">
+                  <p className="font-medium text-foreground">{roleLabel(role, t)}</p>
+                  <p className="mt-1 text-xs">{roleBadge(role, t)}</p>
+                  <p className="mt-2 text-sm">{roleDescription(role, t)}</p>
+                </div>
+              </div>
+            </>
+          )}
+
+          {canEditProfile && (
+            <div className="flex justify-end pt-2">
+              <Button
+                className="h-11 min-w-[160px] rounded-xl"
+                onClick={() => saveMutation.mutate()}
+                disabled={saveMutation.isPending}
+              >
+                {saveMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />}
+                {t("userDetail.save")}
+              </Button>
+            </div>
+          )}
+
+          {!canEditProfile && (
+            <p className="text-sm text-muted-foreground">{t("userDetail.readOnly")}</p>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

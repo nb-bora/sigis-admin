@@ -1,14 +1,18 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { ThemeProvider } from "next-themes";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/lib/auth";
+import { LocaleProvider } from "@/lib/locale";
 import { AuthGuard } from "@/components/AuthGuard";
 import { PermissionRoute } from "@/components/PermissionRoute";
 import { UserDetailRouteGuard } from "@/components/UserDetailRouteGuard";
 import AdminLayout from "@/components/AdminLayout";
 import LoginPage from "@/pages/LoginPage";
+import ForgotPasswordPage from "@/pages/ForgotPasswordPage";
+import ResetPasswordPage from "@/pages/ResetPasswordPage";
 import DashboardPage from "@/pages/DashboardPage";
 import MissionsPage from "@/pages/MissionsPage";
 import MissionDetailPage from "@/pages/MissionDetailPage";
@@ -38,25 +42,29 @@ const queryClient = new QueryClient({
 function AppRoutes() {
   const { isAuthenticated } = useAuth();
 
-  if (!isAuthenticated) {
-    return (
-      <Routes>
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="*" element={<LoginPage />} />
-      </Routes>
-    );
-  }
-
   return (
     <Routes>
-      <Route path="/login" element={<LoginPage />} />
       <Route
-        element={
-          <AuthGuard>
-            <AdminLayout />
-          </AuthGuard>
-        }
-      >
+        path="/login"
+        element={isAuthenticated ? <Navigate to="/" replace /> : <LoginPage />}
+      />
+      <Route
+        path="/auth/forgot-password"
+        element={isAuthenticated ? <Navigate to="/" replace /> : <ForgotPasswordPage />}
+      />
+      <Route path="/auth/reset-password" element={<ResetPasswordPage />} />
+
+      {!isAuthenticated ? (
+        <Route path="*" element={<Navigate to="/login" replace />} />
+      ) : (
+        <>
+          <Route
+            element={
+              <AuthGuard>
+                <AdminLayout />
+              </AuthGuard>
+            }
+          >
         <Route path="/" element={<DashboardPage />} />
         <Route
           path="/missions"
@@ -156,23 +164,29 @@ function AppRoutes() {
           }
         />
         <Route path="/parametres" element={<SettingsPage />} />
-      </Route>
-      <Route path="*" element={<NotFound />} />
+          </Route>
+          <Route path="*" element={<NotFound />} />
+        </>
+      )}
     </Routes>
   );
 }
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <AuthProvider>
-          <AppRoutes />
-        </AuthProvider>
-      </BrowserRouter>
-    </TooltipProvider>
+    <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
+      <LocaleProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner position="top-center" richColors closeButton />
+          <BrowserRouter>
+            <AuthProvider>
+              <AppRoutes />
+            </AuthProvider>
+          </BrowserRouter>
+        </TooltipProvider>
+      </LocaleProvider>
+    </ThemeProvider>
   </QueryClientProvider>
 );
 

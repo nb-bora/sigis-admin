@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useMemo, useState } from "react";
+import { Navigate, useNavigate } from "react-router-dom";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
@@ -15,6 +15,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
 import {
   Select,
   SelectContent,
@@ -22,34 +24,24 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ArrowLeft, Loader2 } from "lucide-react";
-import { Navigate } from "react-router-dom";
+import {
+  ArrowLeft,
+  Loader2,
+  ClipboardPlus,
+  Building2,
+  CalendarRange,
+  ShieldCheck,
+  FileText,
+  MessageSquare,
+  UserCog,
+} from "lucide-react";
 import { toast } from "sonner";
-
-function defaultWindowStart(): string {
-  const d = new Date();
-  d.setDate(d.getDate() + 1);
-  d.setHours(8, 0, 0, 0);
-  return toLocalDatetimeValue(d);
-}
-
-function defaultWindowEnd(): string {
-  const d = new Date();
-  d.setDate(d.getDate() + 1);
-  d.setHours(12, 0, 0, 0);
-  return toLocalDatetimeValue(d);
-}
-
-function toLocalDatetimeValue(d: Date): string {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
-
-function localDatetimeToIso(local: string): string {
-  const t = Date.parse(local);
-  if (Number.isNaN(t)) throw new Error("Date invalide");
-  return new Date(t).toISOString();
-}
+import {
+  defaultWindowStart,
+  defaultWindowEnd,
+  localDatetimeToIso,
+} from "@/lib/datetime";
+import { FormStepper, FormStepperActions, type FormStepperStep } from "@/components/ui/form-stepper";
 
 function parseUuidOrNull(s: string): string | null {
   const t = s.trim();
@@ -69,6 +61,18 @@ export default function CreateMissionPage() {
   const [planReference, setPlanReference] = useState("");
   const [requiresApproval, setRequiresApproval] = useState(false);
   const [designatedHost, setDesignatedHost] = useState("");
+  const [step, setStep] = useState(0);
+
+  const steps = useMemo<FormStepperStep[]>(
+    () => [
+      { id: "place", title: "Lieu & équipe", description: "Établissement et inspecteur" },
+      { id: "window", title: "Créneau", description: "Fenêtre horaire" },
+      { id: "approval", title: "Validation", description: "Approbation hiérarchique" },
+      { id: "extra", title: "Détails", description: "Champs optionnels" },
+    ],
+    [],
+  );
+  const lastStepIndex = steps.length - 1;
 
   const { data: establishments, isLoading: loadEst } = useQuery({
     queryKey: ["establishments-pick", 1000],
@@ -93,7 +97,9 @@ export default function CreateMissionPage() {
     mutationFn: (body: CreateMissionPayload) =>
       api.post<CreateMissionResponse>("/missions", body),
     onSuccess: (data) => {
-      toast.success(`Mission créée (${data.status})`);
+      toast.success("Mission créée", {
+        description: `Statut initial : ${data.status}.`,
+      });
       navigate(`/missions/${data.mission_id}`, { replace: true });
     },
     onError: (e: Error) => toast.error(e.message),
@@ -103,10 +109,46 @@ export default function CreateMissionPage() {
     return <Navigate to="/missions" replace />;
   }
 
+  const goNext = () => {
+    if (step === 0) {
+      if (!establishmentId || !inspectorId) {
+        toast.error("Sélection requise", {
+          description: "Choisissez un établissement et un inspecteur.",
+        });
+        return;
+      }
+    }
+    if (step === 1) {
+      try {
+        const ws = new Date(localDatetimeToIso(windowStart));
+        const we = new Date(localDatetimeToIso(windowEnd));
+        if (we <= ws) {
+          toast.error("Fenêtre invalide", {
+            description: "La fin doit être strictement après le début.",
+          });
+          return;
+        }
+      } catch {
+        toast.error("Dates invalides");
+        return;
+      }
+    }
+    setStep((s) => Math.min(s + 1, lastStepIndex));
+  };
+
+  const goPrev = () => setStep((s) => Math.max(s - 1, 0));
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (step !== lastStepIndex) {
+      goNext();
+      return;
+    }
     if (!establishmentId || !inspectorId) {
-      toast.error("Choisissez un établissement et un inspecteur.");
+      toast.error("Sélection requise", {
+        description: "Choisissez un établissement et un inspecteur.",
+      });
+      setStep(0);
       return;
     }
     try {
@@ -122,7 +164,9 @@ export default function CreateMissionPage() {
         designated_host_user_id: parseUuidOrNull(designatedHost),
       };
       if (new Date(payload.window_end) <= new Date(payload.window_start)) {
-        toast.error("La fin de fenêtre doit être après le début.");
+        toast.error("Fenêtre invalide", {
+          description: "La fin doit être strictement après le début.",
+        });
         return;
       }
       mutation.mutate(payload);
@@ -133,150 +177,268 @@ export default function CreateMissionPage() {
 
   const loading = loadEst || loadInsp;
 
+  const stepHeaders = [
+    {
+      Icon: Building2,
+      title: "Lieu et équipe",
+      description: "Obligatoire pour créer la mission",
+    },
+    {
+      Icon: CalendarRange,
+      title: "Fenêtre horaire",
+      description: "Période pendant laquelle la visite peut avoir lieu",
+    },
+    {
+      Icon: ShieldCheck,
+      title: "Validation hiérarchique",
+      description: "Contrôle avant planification effective",
+    },
+    {
+      Icon: FileText,
+      title: "Détails complémentaires",
+      description: "Optionnel — visibles sur la fiche mission",
+    },
+  ] as const;
+  const StepIcon = stepHeaders[step].Icon;
+
   return (
-    <div className="animate-fade-in max-w-2xl">
-      <Button variant="ghost" size="sm" className="mb-6" onClick={() => navigate("/missions")}>
-        <ArrowLeft className="w-4 h-4 mr-1" /> Retour
+    <div className="animate-fade-in mx-auto max-w-3xl space-y-8">
+      <Button
+        variant="ghost"
+        size="sm"
+        className="-ml-2 gap-1 text-muted-foreground hover:text-foreground"
+        onClick={() => navigate("/missions")}
+      >
+        <ArrowLeft className="h-4 w-4" aria-hidden />
+        Retour aux missions
       </Button>
 
-      <div className="page-header">
-        <h1 className="page-title">Nouvelle mission</h1>
-        <p className="page-description">POST /v1/missions — fenêtre horaire et affectation</p>
-      </div>
-
-      <form onSubmit={handleSubmit} className="bg-card rounded-xl border border-border p-6 space-y-5">
-        <div className="space-y-2">
-          <Label>Établissement *</Label>
-          <Select
-            value={establishmentId}
-            onValueChange={setEstablishmentId}
-            disabled={loading || !establishments?.length}
-          >
-            <SelectTrigger className="bg-background">
-              <SelectValue placeholder={loading ? "Chargement…" : "Choisir un établissement"} />
-            </SelectTrigger>
-            <SelectContent>
-              {establishments?.map((e) => (
-                <SelectItem key={e.id} value={e.id}>
-                  {`${e.name} (${e.id.slice(0, 8)}…)`}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {!loading && establishments?.length === 0 && (
-            <p className="text-xs text-destructive">Aucun établissement — créez-en un d&apos;abord.</p>
-          )}
-        </div>
-
-        <div className="space-y-2">
-          <Label>Inspecteur *</Label>
-          <Select
-            value={inspectorId}
-            onValueChange={setInspectorId}
-            disabled={loading || !inspectors?.length}
-          >
-            <SelectTrigger className="bg-background">
-              <SelectValue placeholder={loading ? "Chargement…" : "Choisir un inspecteur"} />
-            </SelectTrigger>
-            <SelectContent>
-              {inspectors?.map((u) => (
-                <SelectItem key={u.id} value={u.id}>
-                  {u.full_name} ({u.email})
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {!loading && inspectors?.length === 0 && (
-            <p className="text-xs text-destructive">Aucun utilisateur avec le rôle INSPECTOR.</p>
-          )}
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="ws">Début fenêtre *</Label>
-            <Input
-              id="ws"
-              type="datetime-local"
-              value={windowStart}
-              onChange={(e) => setWindowStart(e.target.value)}
-              required
-            />
+      <header className="relative overflow-hidden rounded-2xl border border-primary/10 bg-gradient-to-br from-primary/[0.07] via-card to-sky-500/[0.05] px-6 py-7 shadow-sm sm:px-8">
+        <div
+          className="pointer-events-none absolute inset-0 opacity-[0.35] [background-image:radial-gradient(circle_at_1px_1px,hsl(var(--primary)/0.12)_1px,transparent_0)] [background-size:20px_20px]"
+          aria-hidden
+        />
+        <div className="relative flex gap-4">
+          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-lg shadow-primary/20">
+            <ClipboardPlus className="h-7 w-7" strokeWidth={1.75} aria-hidden />
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="we">Fin fenêtre *</Label>
-            <Input
-              id="we"
-              type="datetime-local"
-              value={windowEnd}
-              onChange={(e) => setWindowEnd(e.target.value)}
-              required
-            />
-          </div>
-        </div>
-
-        <div className="flex items-center justify-between gap-4 rounded-lg border border-border p-4">
           <div>
-            <Label htmlFor="req">Validation hiérarchique</Label>
-            <p className="text-xs text-muted-foreground mt-1">
-              Si activé, la mission est créée en <code className="text-xs">draft</code> jusqu&apos;à
-              approbation.
+            <p className="text-xs font-medium uppercase tracking-widest text-primary/80">Création</p>
+            <h1 className="mt-0.5 text-2xl font-bold tracking-tight text-foreground sm:text-3xl">Nouvelle mission</h1>
+            <p className="mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground">
+              Définissez l&apos;établissement, l&apos;inspecteur et la fenêtre horaire de visite. Les champs optionnels
+              précisent le contexte et les modes de validation hôte.
             </p>
           </div>
-          <Switch
-            id="req"
-            checked={requiresApproval}
-            onCheckedChange={setRequiresApproval}
-          />
         </div>
+      </header>
 
-        <div className="space-y-2">
-          <Label htmlFor="obj">Objectif</Label>
-          <Textarea
-            id="obj"
-            value={objective}
-            onChange={(e) => setObjective(e.target.value)}
-            rows={3}
-            maxLength={4000}
-            placeholder="Optionnel"
+      <form onSubmit={handleSubmit} className="space-y-6" noValidate>
+        <FormStepper
+          steps={steps}
+          currentStep={step}
+          onStepClick={(i) => setStep(i)}
+          allowBackNavigation
+          className="rounded-2xl border border-border/60 bg-muted/10 px-3 py-4 sm:px-6"
+        />
+
+        <Card className="overflow-hidden rounded-2xl border-border/80 shadow-md">
+          <CardHeader className="border-b border-border/60 bg-muted/25">
+            <div className="flex items-center gap-2">
+              <StepIcon className="h-5 w-5 text-primary" strokeWidth={1.75} aria-hidden />
+              <div>
+                <CardTitle className="text-lg">{stepHeaders[step].title}</CardTitle>
+                <CardDescription>{stepHeaders[step].description}</CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="pt-6">
+            <div className={step === 0 ? "space-y-5" : "hidden"} aria-hidden={step !== 0}>
+              <div className="space-y-2">
+                <Label htmlFor="est" className="text-sm font-medium">
+                  Établissement <span className="text-destructive">*</span>
+                </Label>
+                <Select
+                  value={establishmentId}
+                  onValueChange={setEstablishmentId}
+                  disabled={loading || !establishments?.length}
+                >
+                  <SelectTrigger id="est" className="h-11 rounded-xl border-border/80 bg-background">
+                    <SelectValue placeholder={loading ? "Chargement…" : "Sélectionner un établissement"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {establishments?.map((e) => (
+                      <SelectItem key={e.id} value={e.id}>
+                        {e.name}
+                        <span className="ml-2 font-mono text-[11px] text-muted-foreground">({e.id.slice(0, 8)}…)</span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {!loading && establishments?.length === 0 && (
+                  <p className="text-xs text-destructive">Aucun établissement — créez-en un depuis le menu Établissements.</p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="insp" className="text-sm font-medium">
+                  Inspecteur <span className="text-destructive">*</span>
+                </Label>
+                <Select
+                  value={inspectorId}
+                  onValueChange={setInspectorId}
+                  disabled={loading || !inspectors?.length}
+                >
+                  <SelectTrigger id="insp" className="h-11 rounded-xl border-border/80 bg-background">
+                    <SelectValue placeholder={loading ? "Chargement…" : "Sélectionner un inspecteur"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {inspectors?.map((u) => (
+                      <SelectItem key={u.id} value={u.id}>
+                        <span className="font-medium">{u.full_name}</span>
+                        <span className="ml-2 text-muted-foreground">{u.email}</span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {!loading && inspectors?.length === 0 && (
+                  <p className="text-xs text-destructive">Aucun compte avec le rôle inspecteur.</p>
+                )}
+              </div>
+            </div>
+
+            <div className={step === 1 ? "grid gap-5 sm:grid-cols-2" : "hidden"} aria-hidden={step !== 1}>
+              <div className="space-y-2">
+                <Label htmlFor="ws">Début</Label>
+                <Input
+                  id="ws"
+                  type="datetime-local"
+                  value={windowStart}
+                  onChange={(e) => setWindowStart(e.target.value)}
+                  required
+                  className="h-11 rounded-xl font-mono text-sm"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="we">Fin</Label>
+                <Input
+                  id="we"
+                  type="datetime-local"
+                  value={windowEnd}
+                  onChange={(e) => setWindowEnd(e.target.value)}
+                  required
+                  className="h-11 rounded-xl font-mono text-sm"
+                />
+              </div>
+            </div>
+
+            <div className={step === 2 ? "" : "hidden"} aria-hidden={step !== 2}>
+              <div className="flex flex-col gap-4 rounded-xl border border-border/80 bg-muted/20 p-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="space-y-1">
+                  <Label htmlFor="req" className="text-base font-medium">
+                    Exiger une approbation
+                  </Label>
+                  <p className="text-sm text-muted-foreground">
+                    La mission est créée en <span className="font-mono text-xs">draft</span> jusqu&apos;à validation par
+                    un responsable.
+                  </p>
+                </div>
+                <Switch id="req" checked={requiresApproval} onCheckedChange={setRequiresApproval} />
+              </div>
+            </div>
+
+            <div className={step === 3 ? "space-y-5" : "hidden"} aria-hidden={step !== 3}>
+              <div className="space-y-2">
+                <Label htmlFor="obj">Objectif</Label>
+                <Textarea
+                  id="obj"
+                  value={objective}
+                  onChange={(e) => setObjective(e.target.value)}
+                  rows={4}
+                  maxLength={4000}
+                  placeholder="Contexte, objectifs pédagogiques ou points de contrôle…"
+                  className="min-h-[100px] resize-y rounded-xl"
+                />
+                <p className="text-xs text-muted-foreground">{objective.length} / 4000</p>
+              </div>
+
+              <Separator />
+
+              <div className="grid gap-5 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="plan">Référence de plan</Label>
+                  <Input
+                    id="plan"
+                    value={planReference}
+                    onChange={(e) => setPlanReference(e.target.value)}
+                    maxLength={256}
+                    placeholder="ex. PLAN-2026-042"
+                    className="h-11 rounded-xl"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="sms" className="inline-flex items-center gap-1.5">
+                    <MessageSquare className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
+                    Code SMS (mode C)
+                  </Label>
+                  <Input
+                    id="sms"
+                    value={smsCode}
+                    onChange={(e) => setSmsCode(e.target.value)}
+                    maxLength={32}
+                    placeholder="Si validation par SMS"
+                    className="h-11 rounded-xl"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="dh" className="inline-flex items-center gap-1.5">
+                  <UserCog className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
+                  Hôte désigné (UUID)
+                </Label>
+                <Input
+                  id="dh"
+                  value={designatedHost}
+                  onChange={(e) => setDesignatedHost(e.target.value)}
+                  className="font-mono text-xs h-11 rounded-xl"
+                  placeholder="Laisser vide pour le défaut établissement"
+                />
+                <p className="text-xs text-muted-foreground">Identifiant utilisateur du responsable d&apos;accueil.</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {step < lastStepIndex ? (
+          <FormStepperActions
+            currentStep={step}
+            totalSteps={steps.length}
+            onPrev={goPrev}
+            onNext={goNext}
+            nextLabel="Continuer"
+            className="pt-2"
           />
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="plan">Référence plan</Label>
-            <Input
-              id="plan"
-              value={planReference}
-              onChange={(e) => setPlanReference(e.target.value)}
-              maxLength={256}
-            />
+        ) : (
+          <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:items-center sm:justify-between">
+            <Button type="button" variant="ghost" className="h-11 rounded-xl text-muted-foreground" onClick={goPrev}>
+              Précédent
+            </Button>
+            <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+              <Button type="button" variant="outline" className="h-11 rounded-xl" onClick={() => navigate("/missions")}>
+                Annuler
+              </Button>
+              <Button
+                type="submit"
+                className="h-11 min-w-[200px] rounded-xl shadow-md shadow-primary/20"
+                disabled={mutation.isPending || loading}
+              >
+                {mutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />}
+                Créer la mission
+              </Button>
+            </div>
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="sms">Code SMS (mode C)</Label>
-            <Input id="sms" value={smsCode} onChange={(e) => setSmsCode(e.target.value)} maxLength={32} />
-          </div>
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="dh">Hôte désigné (UUID, optionnel)</Label>
-          <Input
-            id="dh"
-            value={designatedHost}
-            onChange={(e) => setDesignatedHost(e.target.value)}
-            className="font-mono text-xs"
-            placeholder="Surcharge du responsable d'accueil"
-          />
-        </div>
-
-        <div className="flex gap-3 pt-2">
-          <Button type="submit" disabled={mutation.isPending || loading}>
-            {mutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-            Créer la mission
-          </Button>
-          <Button type="button" variant="outline" onClick={() => navigate("/missions")}>
-            Annuler
-          </Button>
-        </div>
+        )}
       </form>
     </div>
   );
