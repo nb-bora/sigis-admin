@@ -2,12 +2,21 @@ import { getStoredLocale, translate } from "@/lib/locale";
 
 const API_PREFIX = "/v1";
 
-/** Sans `VITE_API_BASE_URL` en dev : même origine (Vite proxy → backend). */
+/** URL du backend (sans slash final). */
+const DEFAULT_PRODUCTION_API = "https://sigis-backend.onrender.com";
+
+/**
+ * En dev : même origine + proxy Vite (`/v1` → localhost:8000), pas besoin de CORS.
+ * En prod (Vercel, etc.) : il faut l’URL absolue du backend — ne pas utiliser
+ * `window.location.origin` sinon les requêtes partent vers le front (404 / CORS).
+ */
 function baseUrl(): string {
-  const env = import.meta.env.VITE_API_BASE_URL as string | undefined;
-  if (env) return env;
-  if (typeof window !== "undefined") return window.location.origin;
-  return "http://localhost:8000";
+  const env = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim();
+  if (env) return env.replace(/\/$/, "");
+  if (import.meta.env.DEV && typeof window !== "undefined") {
+    return window.location.origin;
+  }
+  return DEFAULT_PRODUCTION_API;
 }
 
 function messageFromErrorBody(data: unknown): string | null {
