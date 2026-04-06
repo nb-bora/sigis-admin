@@ -357,7 +357,10 @@ export default function SettingsPage() {
                 <span className="status-badge-success">
                   {health.status === "ok" ? t("settings.apiOperational") : health.status}
                 </span>
-                <span className="font-mono text-xs text-muted-foreground">{health.service}</span>
+                <span className="font-mono text-xs text-muted-foreground">
+                  {health.service}
+                  {health.version ? ` · v${health.version}` : ""}
+                </span>
               </div>
             ) : (
               <p className="text-sm text-muted-foreground">

@@ -222,7 +222,8 @@ export type Permission =
   | "ROLE_READ"
   | "ROLE_MANAGE_PERMISSIONS"
   | "REPORT_READ"
-  | "AUDIT_READ";
+  | "AUDIT_READ"
+  | "TELEMETRY_READ";
 
 /** Matrice par défaut — miroir de domain/identity/role_defaults.py (approximation UI). */
 export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
@@ -254,6 +255,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     "ROLE_MANAGE_PERMISSIONS",
     "REPORT_READ",
     "AUDIT_READ",
+    "TELEMETRY_READ",
   ],
   NATIONAL_ADMIN: [
     "ESTABLISHMENT_CREATE",
@@ -277,6 +279,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     "ROLE_READ",
     "REPORT_READ",
     "AUDIT_READ",
+    "TELEMETRY_READ",
   ],
   REGIONAL_SUPERVISOR: [
     "ESTABLISHMENT_READ",
@@ -383,6 +386,8 @@ export interface RegisterUserResponse {
 export interface HealthResponse {
   status: string;
   service: string;
+  /** Présent lorsque le backend expose la version du paquet (GET /v1/health). */
+  version?: string;
 }
 
 // ─── GET /roles — matrice permissions (admin national+) ────────────────────

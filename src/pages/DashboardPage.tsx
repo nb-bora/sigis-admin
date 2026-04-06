@@ -20,6 +20,7 @@ import {
   Info,
   RefreshCw,
   Compass,
+  Radio,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -59,6 +60,13 @@ const QUICK_DEFS: Array<{
   { labelKey: "dashboard.quick.users", hintKey: "dashboard.quick.usersHint", path: "/utilisateurs", permission: "USER_LIST", icon: Users },
   { labelKey: "dashboard.quick.pilotage", hintKey: "dashboard.quick.pilotageHint", path: "/pilotage", permission: "REPORT_READ", icon: TrendingUp },
   { labelKey: "dashboard.quick.audit", hintKey: "dashboard.quick.auditHint", path: "/audit", permission: "AUDIT_READ", icon: FileSearch },
+  {
+    labelKey: "dashboard.quick.observability",
+    hintKey: "dashboard.quick.observabilityHint",
+    path: "/observabilite",
+    permission: "TELEMETRY_READ",
+    icon: Radio,
+  },
   { labelKey: "dashboard.quick.settings", hintKey: "dashboard.quick.settingsHint", path: "/parametres", permission: "always", icon: Sparkles },
 ];
 

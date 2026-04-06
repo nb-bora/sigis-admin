@@ -28,6 +28,8 @@ import CreateEstablishmentPage from "@/pages/CreateEstablishmentPage";
 import RolesPage from "@/pages/RolesPage";
 import RegisterUserPage from "@/pages/RegisterUserPage";
 import EstablishmentDetailPage from "@/pages/EstablishmentDetailPage";
+import ObservabilityPage from "@/pages/ObservabilityPage";
+import { ObservabilityProvider } from "@/lib/observability/ObservabilityProvider";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -163,6 +165,14 @@ function AppRoutes() {
             </PermissionRoute>
           }
         />
+        <Route
+          path="/observabilite"
+          element={
+            <PermissionRoute permission="TELEMETRY_READ">
+              <ObservabilityPage />
+            </PermissionRoute>
+          }
+        />
         <Route path="/parametres" element={<SettingsPage />} />
           </Route>
           <Route path="*" element={<NotFound />} />
@@ -181,7 +191,9 @@ const App = () => (
           <Sonner position="top-center" richColors closeButton />
           <BrowserRouter>
             <AuthProvider>
-              <AppRoutes />
+              <ObservabilityProvider>
+                <AppRoutes />
+              </ObservabilityProvider>
             </AuthProvider>
           </BrowserRouter>
         </TooltipProvider>

@@ -28,6 +28,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { useLocale } from "@/lib/locale";
+import { EstablishmentExcelImport } from "@/components/import/EstablishmentExcelImport";
 
 const ESTABLISHMENT_TYPE_KEYS = ["other", "lycee", "college", "primaire", "formation", "admin"] as const;
 
@@ -158,14 +159,17 @@ export default function EstablishmentsPage() {
             </div>
           </div>
           {hasPermission("ESTABLISHMENT_CREATE") && (
-            <Button
-              size="lg"
-              className="shrink-0 shadow-md shadow-primary/20"
-              onClick={() => navigate("/etablissements/new")}
-            >
-              <Plus className="mr-2 h-4 w-4" aria-hidden />
-              {t("establishments.page.newEstablishment")}
-            </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              <EstablishmentExcelImport />
+              <Button
+                size="lg"
+                className="shrink-0 shadow-md shadow-primary/20"
+                onClick={() => navigate("/etablissements/new")}
+              >
+                <Plus className="mr-2 h-4 w-4" aria-hidden />
+                {t("establishments.page.newEstablishment")}
+              </Button>
+            </div>
           )}
         </div>
       </header>

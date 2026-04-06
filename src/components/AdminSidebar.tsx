@@ -16,9 +16,20 @@ import {
   ChevronLeft,
   Menu,
   KeyRound,
+  Radio,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Permission, Role } from "@/types/api";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface NavItem {
   label: string;
@@ -48,6 +59,7 @@ const NAV_BASE: Array<{
   },
   { labelKey: "nav.pilotage", path: "/pilotage", icon: BarChart3, permissions: ["REPORT_READ"] },
   { labelKey: "nav.audit", path: "/audit", icon: FileText, permissions: ["AUDIT_READ"] },
+  { labelKey: "nav.observability", path: "/observabilite", icon: Radio, permissions: ["TELEMETRY_READ"] },
 ];
 
 export function AdminSidebar() {
@@ -55,6 +67,7 @@ export function AdminSidebar() {
   const { t } = useLocale();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [logoutOpen, setLogoutOpen] = useState(false);
   const location = useLocation();
 
   const navItems: NavItem[] = useMemo(
@@ -129,7 +142,7 @@ export function AdminSidebar() {
         </NavLink>
         <button
           type="button"
-          onClick={logout}
+          onClick={() => setLogoutOpen(true)}
           className={cn(
             "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors w-full text-left",
             collapsed && "justify-center px-2",
@@ -144,6 +157,24 @@ export function AdminSidebar() {
 
   return (
     <>
+      <AlertDialog open={logoutOpen} onOpenChange={setLogoutOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("nav.logoutConfirmTitle")}</AlertDialogTitle>
+            <AlertDialogDescription>{t("nav.logoutConfirmDesc")}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("nav.logoutConfirmCancel")}</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => logout()}
+            >
+              {t("nav.logoutConfirmAction")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <button
         type="button"
         onClick={() => setMobileOpen(true)}

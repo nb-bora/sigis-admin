@@ -1,9 +1,10 @@
 import { getStoredLocale, translate } from "@/lib/locale";
+import { tracker } from "@/lib/observability/tracker";
 
 const API_PREFIX = "/v1";
 
 /** URL du backend (sans slash final). */
-const DEFAULT_PRODUCTION_API = "https://sigis-backend.onrender.com";
+const DEFAULT_PRODUCTION_API = "http://localhost:8000";
 
 /**
  * En dev : même origine + proxy Vite (`/v1` → localhost:8000), pas besoin de CORS.
@@ -22,7 +23,11 @@ function baseUrl(): string {
 function messageFromErrorBody(data: unknown): string | null {
   if (!data || typeof data !== "object") return null;
   const o = data as Record<string, unknown>;
-  if (typeof o.detail === "string") return o.detail;
+  const rid =
+    typeof o.request_id === "string" && o.request_id.trim() ? o.request_id.trim() : null;
+  const withRef = (msg: string) => (rid ? `${msg} [ref: ${rid}]` : msg);
+
+  if (typeof o.detail === "string") return withRef(o.detail);
   if (Array.isArray(o.detail)) {
     const parts = o.detail
       .map((item) => {
@@ -32,13 +37,13 @@ function messageFromErrorBody(data: unknown): string | null {
         return null;
       })
       .filter((x): x is string => Boolean(x));
-    if (parts.length) return parts.join(" · ");
+    if (parts.length) return withRef(parts.join(" · "));
   }
   if (o.detail && typeof o.detail === "object" && "message" in o.detail) {
     const m = (o.detail as { message?: unknown }).message;
-    if (typeof m === "string") return m;
+    if (typeof m === "string") return withRef(m);
   }
-  if (typeof o.message === "string") return o.message;
+  if (typeof o.message === "string") return withRef(o.message);
   return null;
 }
 
@@ -74,11 +79,27 @@ class ApiClient {
     if (this.token) headers["Authorization"] = `Bearer ${this.token}`;
     if (options?.body) headers["Content-Type"] = "application/json";
 
-    const res = await fetch(url.toString(), {
-      method,
-      headers,
-      body: options?.body ? JSON.stringify(options.body) : undefined,
-    });
+    const t0 = performance.now();
+    let res: Response;
+    try {
+      res = await fetch(url.toString(), {
+        method,
+        headers,
+        body: options?.body ? JSON.stringify(options.body) : undefined,
+      });
+    } catch (networkErr) {
+      const duration_ms = performance.now() - t0;
+      tracker.recordApiCall({ method, path, status: 0, duration_ms, meta: { error: String(networkErr) } });
+      throw networkErr;
+    }
+
+    const duration_ms = performance.now() - t0;
+    const requestId = res.headers.get("X-Request-ID") ?? undefined;
+
+    // On n'enregistre pas les appels telemetry eux-mêmes (évite boucle infinie)
+    if (!path.startsWith("/telemetry")) {
+      tracker.recordApiCall({ method, path, status: res.status, duration_ms, requestId, meta: {} });
+    }
 
     if (res.status === 401) {
       this.onUnauthorized?.();
@@ -133,8 +154,7 @@ class ApiClient {
       } catch {
         body = null;
       }
-      const msg =
-        messageFromErrorBody(body) || `Erreur ${res.status} : ${res.statusText}`;
+      const msg = messageFromErrorBody(body) || `Erreur ${res.status} : ${res.statusText}`;
       throw new Error(msg);
     }
     if (res.status === 204) return null;

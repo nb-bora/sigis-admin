@@ -42,6 +42,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { localDateEndIso, localDateStartIso } from "@/lib/datetime";
 import { useLocale } from "@/lib/locale";
+import { ExceptionExcelImport } from "@/components/import/ExceptionExcelImport";
 
 function exceptionStatusLabel(status: string, tr: (key: string) => string) {
   const key = `exception.status.${status}`;
@@ -349,6 +350,11 @@ export default function ExceptionsPage() {
               <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">{t("exceptions.page.heroDesc")}</p>
             </div>
           </div>
+          {hasPermission("EXCEPTION_CREATE") && (
+            <div className="flex flex-wrap items-center gap-2">
+              <ExceptionExcelImport />
+            </div>
+          )}
         </div>
       </header>
 

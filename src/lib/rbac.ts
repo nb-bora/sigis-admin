@@ -71,6 +71,7 @@ export const PERMISSIONS_ORDER: Permission[] = [
   "ROLE_MANAGE_PERMISSIONS",
   "REPORT_READ",
   "AUDIT_READ",
+  "TELEMETRY_READ",
 ];
 
 export function permissionPrefix(code: string): string {

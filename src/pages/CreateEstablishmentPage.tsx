@@ -1,6 +1,7 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { useMutation } from "@tanstack/react-query";
+import { MapPickerDialog } from "@/components/establishments/MapPickerDialog";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import type { CreateEstablishmentPayload, CreateEstablishmentResponse } from "@/types/api";
@@ -22,6 +23,7 @@ import {
   Loader2,
   Building2,
   MapPinned,
+  MapPin,
   Users,
   ClipboardPlus,
   Mail,
@@ -63,6 +65,21 @@ export default function CreateEstablishmentPage() {
   const [contactPhone, setContactPhone] = useState("");
   const [parentId, setParentId] = useState("");
   const [hostUserId, setHostUserId] = useState("");
+  const [mapDialogOpen, setMapDialogOpen] = useState(false);
+
+  const mapInitialCenter = useMemo(() => {
+    const lat = Number(centerLat);
+    const lon = Number(centerLon);
+    const fallbackLat = 4.0511;
+    const fallbackLon = 9.7679;
+    const latOk = !Number.isNaN(lat) && lat >= -90 && lat <= 90;
+    const lonOk = !Number.isNaN(lon) && lon >= -180 && lon <= 180;
+    return { lat: latOk ? lat : fallbackLat, lng: lonOk ? lon : fallbackLon };
+  }, [centerLat, centerLon]);
+
+  useEffect(() => {
+    if (step !== 1) setMapDialogOpen(false);
+  }, [step]);
 
   const steps = useMemo<FormStepperStep[]>(
     () => [
@@ -275,29 +292,40 @@ export default function CreateEstablishmentPage() {
             </div>
 
             <div className={step === 1 ? "space-y-5" : "hidden"} aria-hidden={step !== 1}>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="lat">Latitude (WGS-84) *</Label>
-                  <Input
-                    id="lat"
-                    type="number"
-                    step="any"
-                    value={centerLat}
-                    onChange={(e) => setCenterLat(e.target.value)}
-                    className="h-11 rounded-xl font-mono text-sm"
-                  />
+              <div className="flex flex-col gap-3">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="lat">Latitude (WGS-84) *</Label>
+                    <Input
+                      id="lat"
+                      type="number"
+                      step="any"
+                      value={centerLat}
+                      onChange={(e) => setCenterLat(e.target.value)}
+                      className="h-11 rounded-xl font-mono text-sm"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="lon">Longitude *</Label>
+                    <Input
+                      id="lon"
+                      type="number"
+                      step="any"
+                      value={centerLon}
+                      onChange={(e) => setCenterLon(e.target.value)}
+                      className="h-11 rounded-xl font-mono text-sm"
+                    />
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="lon">Longitude *</Label>
-                  <Input
-                    id="lon"
-                    type="number"
-                    step="any"
-                    value={centerLon}
-                    onChange={(e) => setCenterLon(e.target.value)}
-                    className="h-11 rounded-xl font-mono text-sm"
-                  />
-                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-11 w-full gap-2 rounded-xl border-primary/25 bg-primary/[0.04] text-primary hover:bg-primary/[0.09] sm:w-auto sm:self-start"
+                  onClick={() => setMapDialogOpen(true)}
+                >
+                  <MapPin className="h-4 w-4 shrink-0" aria-hidden />
+                  Choisir sur la carte
+                </Button>
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
@@ -384,6 +412,17 @@ export default function CreateEstablishmentPage() {
             </div>
           </CardContent>
         </Card>
+
+        <MapPickerDialog
+          open={mapDialogOpen}
+          onOpenChange={setMapDialogOpen}
+          initialLat={mapInitialCenter.lat}
+          initialLng={mapInitialCenter.lng}
+          onApply={(lat, lng) => {
+            setCenterLat(String(lat));
+            setCenterLon(String(lng));
+          }}
+        />
 
         {step < lastStep ? (
           <FormStepperActions

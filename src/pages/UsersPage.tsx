@@ -31,6 +31,7 @@ import {
 import { ROLE_ORDER, roleLabel } from "@/lib/rbac";
 import { useLocale } from "@/lib/locale";
 import { cn } from "@/lib/utils";
+import { UserExcelImport } from "@/components/import/UserExcelImport";
 
 const limit = 20;
 
@@ -143,14 +144,17 @@ export default function UsersPage() {
             </div>
           </div>
           {hasPermission("AUTH_REGISTER_USER") && (
-            <Button
-              size="lg"
-              className="shrink-0 shadow-md shadow-primary/20"
-              onClick={() => navigate("/utilisateurs/nouveau")}
-            >
-              <UserPlus className="mr-2 h-4 w-4" aria-hidden />
-              {t("users.page.newAccount")}
-            </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              <UserExcelImport />
+              <Button
+                size="lg"
+                className="shrink-0 shadow-md shadow-primary/20"
+                onClick={() => navigate("/utilisateurs/nouveau")}
+              >
+                <UserPlus className="mr-2 h-4 w-4" aria-hidden />
+                {t("users.page.newAccount")}
+              </Button>
+            </div>
           )}
         </div>
       </header>

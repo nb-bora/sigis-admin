@@ -113,7 +113,13 @@ export default function MissionDetailPage() {
   });
 
   useEffect(() => {
-    setEditStep(0);
+    setShowCancel(false);
+    setCancelReason("");
+    setHostQrToken(null);
+    setNewInspectorId("");
+    setOutcomeSummary("");
+    setOutcomeNotes("");
+    setComplianceLevel("");
   }, [id]);
 
   useEffect(() => {

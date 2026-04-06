@@ -30,6 +30,7 @@ export const messagesEnRbac: Record<string, string> = {
   "rbac.prefix.ROLE": "Roles & rights",
   "rbac.prefix.REPORT": "Management & exports",
   "rbac.prefix.AUDIT": "Audit & traceability",
+  "rbac.prefix.TELEMETRY": "Observability",
 
   "rbac.permissions.ESTABLISHMENT_CREATE.label": "Create an establishment",
   "rbac.permissions.ESTABLISHMENT_CREATE.description":
@@ -89,4 +90,7 @@ export const messagesEnRbac: Record<string, string> = {
   "rbac.permissions.REPORT_READ.description": "Aggregated indicators and CSV exports.",
   "rbac.permissions.AUDIT_READ.label": "Audit log",
   "rbac.permissions.AUDIT_READ.description": "View traces of sensitive actions.",
+  "rbac.permissions.TELEMETRY_READ.label": "Observability & telemetry",
+  "rbac.permissions.TELEMETRY_READ.description":
+    "View live request flow, UI events, and performance indicators.",
 };

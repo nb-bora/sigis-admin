@@ -6,7 +6,7 @@ import { AuthPageShell } from "@/components/auth/AuthPageShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, Mail, Lock, AlertCircle } from "lucide-react";
+import { Loader2, Mail, Lock, AlertCircle, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -15,6 +15,7 @@ export default function LoginPage() {
   const { t } = useLocale();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<{ email?: string; password?: string }>({});
   const [loading, setLoading] = useState(false);
 
@@ -121,7 +122,7 @@ export default function LoginPage() {
               />
               <Input
                 id="password"
-                type="password"
+                type={showPassword ? "text" : "password"}
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => {
@@ -133,10 +134,22 @@ export default function LoginPage() {
                 aria-invalid={Boolean(fieldErrors.password)}
                 aria-describedby={fieldErrors.password ? "password-error" : undefined}
                 className={cn(
-                  "h-11 pl-10 transition-shadow",
+                  "h-11 pl-10 pr-11 transition-shadow",
                   fieldErrors.password && "border-destructive ring-destructive/20 focus-visible:ring-destructive/30",
                 )}
               />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="absolute right-1 top-1/2 h-9 w-9 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                onClick={() => setShowPassword((v) => !v)}
+                aria-label={showPassword ? t("auth.login.hidePassword") : t("auth.login.showPassword")}
+                aria-pressed={showPassword}
+                disabled={loading}
+              >
+                {showPassword ? <EyeOff className="h-4 w-4" aria-hidden /> : <Eye className="h-4 w-4" aria-hidden />}
+              </Button>
             </div>
             {fieldErrors.password && (
               <p id="password-error" className="flex items-center gap-1.5 text-xs text-destructive" role="alert">

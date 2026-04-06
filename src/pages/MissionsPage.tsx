@@ -36,6 +36,7 @@ import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { localDateEndIso, localDateStartIso } from "@/lib/datetime";
 import { toast } from "sonner";
+import { MissionExcelImport } from "@/components/import/MissionExcelImport";
 
 const statusBadgeVariant: Record<
   MissionStatusApi,
@@ -93,12 +94,15 @@ function missionStatusLabel(
 function buildScopeParams(
   inspectorId: string,
   establishmentId: string,
+  territoryCode: string,
   dateFrom: string,
   dateTo: string,
 ): Record<string, string> {
   const p: Record<string, string> = {};
   if (inspectorId) p.inspector_id = inspectorId;
   if (establishmentId) p.establishment_id = establishmentId;
+  const terr = territoryCode.trim();
+  if (terr) p.territory_code = terr;
   if (dateFrom) {
     try {
       p.window_from = localDateStartIso(dateFrom);
@@ -135,11 +139,13 @@ export default function MissionsPage() {
   const [establishmentFilter, setEstablishmentFilter] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [territoryFilter, setTerritoryFilter] = useState("");
   const limit = 20;
 
   const scopeParams = useMemo(
-    () => buildScopeParams(inspectorFilter, establishmentFilter, dateFrom, dateTo),
-    [inspectorFilter, establishmentFilter, dateFrom, dateTo],
+    () =>
+      buildScopeParams(inspectorFilter, establishmentFilter, territoryFilter, dateFrom, dateTo),
+    [inspectorFilter, establishmentFilter, territoryFilter, dateFrom, dateTo],
   );
 
   const { data: establishments, isLoading: loadEst } = useQuery({
@@ -197,6 +203,7 @@ export default function MissionsPage() {
   const resetFilters = () => {
     setInspectorFilter("");
     setEstablishmentFilter("");
+    setTerritoryFilter("");
     setDateFrom("");
     setDateTo("");
     setStatusFilter("all");
@@ -223,6 +230,7 @@ export default function MissionsPage() {
   const hasActiveFilters =
     inspectorFilter ||
     establishmentFilter ||
+    territoryFilter.trim() ||
     dateFrom ||
     dateTo ||
     statusFilter !== "all";
@@ -270,14 +278,17 @@ export default function MissionsPage() {
             </div>
           </div>
           {hasPermission("MISSION_CREATE") && (
-            <Button
-              size="lg"
-              className="shrink-0 shadow-md shadow-primary/20"
-              onClick={() => navigate("/missions/new")}
-            >
-              <Plus className="mr-2 h-4 w-4" aria-hidden />
-              {t("missions.page.newMission")}
-            </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              <MissionExcelImport />
+              <Button
+                size="lg"
+                className="shrink-0 shadow-md shadow-primary/20"
+                onClick={() => navigate("/missions/new")}
+              >
+                <Plus className="mr-2 h-4 w-4" aria-hidden />
+                {t("missions.page.newMission")}
+              </Button>
+            </div>
           )}
         </div>
       </header>
@@ -405,7 +416,7 @@ export default function MissionsPage() {
               )}
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
               <div className="space-y-2">
                 <Label className="text-xs font-medium text-muted-foreground">{t("missions.page.labelInspector")}</Label>
                 <Select
@@ -480,7 +491,21 @@ export default function MissionsPage() {
                 </Select>
               </div>
 
-              <div className="space-y-2 sm:col-span-2 xl:col-span-1">
+              <div className="space-y-2">
+                <Label className="text-xs font-medium text-muted-foreground">{t("missions.page.labelTerritory")}</Label>
+                <Input
+                  value={territoryFilter}
+                  onChange={(e) => {
+                    setTerritoryFilter(e.target.value);
+                    setSkip(0);
+                  }}
+                  placeholder={t("missions.page.territoryPlaceholder")}
+                  className="h-11 rounded-xl"
+                  autoComplete="off"
+                />
+              </div>
+
+              <div className="space-y-2 sm:col-span-2 xl:col-span-4">
                 <Label className="text-xs font-medium text-muted-foreground">{t("missions.page.dateRangeLabel")}</Label>
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                   <Input
