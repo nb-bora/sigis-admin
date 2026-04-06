@@ -32,6 +32,7 @@ import {
   UserCircle,
 } from "lucide-react";
 import { toast } from "sonner";
+import { ConfirmSubmitDialog } from "@/components/ConfirmSubmitDialog";
 
 const TYPE_LABELS: Record<string, string> = {
   other: "Autre",
@@ -61,6 +62,7 @@ export default function EstablishmentDetailPage() {
   const { hasPermission } = useAuth();
   const queryClient = useQueryClient();
   const canEdit = hasPermission("ESTABLISHMENT_UPDATE");
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   const { data: est, isLoading } = useQuery({
     queryKey: ["establishment", id],
@@ -147,12 +149,12 @@ export default function EstablishmentDetailPage() {
       toast.error("Le rayon élargi doit être supérieur ou égal au rayon strict.");
       return;
     }
-    saveMutation.mutate();
+    setConfirmOpen(true);
   };
 
   if (isLoading) {
     return (
-      <div className="animate-fade-in mx-auto max-w-4xl space-y-6">
+      <div className="animate-fade-in w-full space-y-6">
         <Skeleton className="h-10 w-40 rounded-lg" />
         <Skeleton className="h-48 w-full rounded-2xl" />
         <Skeleton className="h-72 w-full rounded-2xl" />
@@ -169,7 +171,22 @@ export default function EstablishmentDetailPage() {
   }
 
   return (
-    <div className="animate-fade-in mx-auto max-w-4xl space-y-8">
+    <div className="animate-fade-in w-full space-y-8">
+      <ConfirmSubmitDialog
+        open={confirmOpen}
+        onOpenChange={(o) => {
+          if (!saveMutation.isPending) setConfirmOpen(o);
+        }}
+        title="Enregistrer les modifications ?"
+        description="Les informations de l’établissement seront mises à jour."
+        confirmLabel="Enregistrer"
+        cancelLabel="Annuler"
+        confirmDisabled={saveMutation.isPending}
+        onConfirm={() => {
+          saveMutation.mutate();
+          setConfirmOpen(false);
+        }}
+      />
       <Button
         variant="ghost"
         size="sm"
@@ -231,9 +248,10 @@ export default function EstablishmentDetailPage() {
               Rayons (m)
             </div>
             <p className="mt-2 text-sm text-foreground">
-              strict <span className="font-semibold tabular-nums">{est.radius_strict_m}</span>
-              <span className="text-muted-foreground"> · </span>
-              élargi <span className="font-semibold tabular-nums">{est.radius_relaxed_m}</span>
+              strict{" "}
+              <span className="font-semibold tabular-nums">{est.radius_strict_m}</span>{" "}
+              <span className="text-muted-foreground"> · </span> élargi{" "}
+              <span className="font-semibold tabular-nums">{est.radius_relaxed_m}</span>
             </p>
           </div>
           <div className="rounded-xl border border-border/60 bg-muted/15 p-4 sm:col-span-2 lg:col-span-1">

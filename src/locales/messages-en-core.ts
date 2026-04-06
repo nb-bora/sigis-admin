@@ -5,6 +5,8 @@ export const messagesEnCore: Record<string, string> = {
 
   "shell.brandSubtitle": "Inspection mission traceability",
   "shell.footer": "MINESEC / MINSUB — Republic of Cameroon",
+  "shell.greetingNamed": "Hello, {name}",
+  "shell.greetingAnonymous": "Welcome",
 
   "nav.dashboard": "Dashboard",
   "nav.missions": "Missions",
@@ -358,8 +360,28 @@ export const messagesEnCore: Record<string, string> = {
   "dashboard.hero.title": "Overview",
   "dashboard.hero.subtitleFull":
     "Volumes and breakdown of missions and reports. Click an indicator to open the related list.",
+  "dashboard.hero.subtitleFull.SUPER_ADMIN":
+    "Global view: volumes, breakdown, and quick access to administration and management modules.",
+  "dashboard.hero.subtitleFull.NATIONAL_ADMIN":
+    "National management: track volumes, prioritize reports, and open lists in one click.",
+  "dashboard.hero.subtitleFull.REGIONAL_SUPERVISOR":
+    "Regional supervision: missions, reports, and indicators aligned with your scope.",
+  "dashboard.hero.subtitleFull.INSPECTOR":
+    "Your missions and the field: indicators to prepare and follow your visits.",
+  "dashboard.hero.subtitleFull.HOST":
+    "Hosting and missions that concern you: simple pointers for the field.",
   "dashboard.hero.subtitleNoReport":
     "Welcome to the inspection mission traceability platform. Available modules depend on your role.",
+  "dashboard.hero.subtitleNoReport.SUPER_ADMIN":
+    "Administration space: shortcuts match your permissions. Aggregated management views require the right permission.",
+  "dashboard.hero.subtitleNoReport.NATIONAL_ADMIN":
+    "National space: open authorized modules. Full aggregated dashboards require REPORT_READ.",
+  "dashboard.hero.subtitleNoReport.REGIONAL_SUPERVISOR":
+    "Supervision space: focus on missions and reports available to your role.",
+  "dashboard.hero.subtitleNoReport.INSPECTOR":
+    "Field space: missions, establishments, and reports per your permissions — aggregated management is not available for this profile.",
+  "dashboard.hero.subtitleNoReport.HOST":
+    "Host space: missions and reception — the UI adapts to your role.",
   "dashboard.today": "Today",
   "dashboard.dataReady": "Ready",
   "dashboard.dataLoading": "Loading indicators…",
@@ -367,6 +389,11 @@ export const messagesEnCore: Record<string, string> = {
   "dashboard.indicators": "Indicators",
   "dashboard.kpiTitle": "Key indicators",
   "dashboard.kpiHint": "Click a card to open the list.",
+  "dashboard.kpiHint.SUPER_ADMIN": "Clickable cards — direct access to indicator-related lists.",
+  "dashboard.kpiHint.NATIONAL_ADMIN": "Pick an indicator: one click opens the matching list.",
+  "dashboard.kpiHint.REGIONAL_SUPERVISOR": "Track activity: each card leads to the operational list.",
+  "dashboard.kpiHint.INSPECTOR": "Quick pointers: open missions, establishments, or reports you can access.",
+  "dashboard.kpiHint.HOST": "Light summary: open lists authorized for your role.",
   "dashboard.stat.missions": "Missions",
   "dashboard.stat.establishments": "Establishments",
   "dashboard.stat.exceptions": "Reports",
@@ -398,6 +425,7 @@ export const messagesEnCore: Record<string, string> = {
   "dashboard.shortcutsDesc": "Open detailed management, audit logs, or your settings in one click.",
   "dashboard.btnPilotage": "Management",
   "dashboard.btnAudit": "Audit",
+  "dashboard.btnObservability": "Observability",
   "dashboard.btnSettings": "Settings",
 
   "dashboard.quick.missions": "Missions",
@@ -416,6 +444,8 @@ export const messagesEnCore: Record<string, string> = {
   "dashboard.quick.observabilityHint": "Requests, events, and performance",
   "dashboard.quick.settings": "Settings",
   "dashboard.quick.settingsHint": "Profile and preferences",
+  "dashboard.quick.roles": "Roles & permissions",
+  "dashboard.quick.rolesHint": "Permission matrix by role",
 
   "observability.heroEyebrow": "Live",
   "observability.heroTitle": "Observability",
@@ -626,6 +656,10 @@ export const messagesEnCore: Record<string, string> = {
   "userDetail.accountActiveHint": "A disabled account can no longer sign in.",
   "userDetail.roleSigis": "SIGIS role",
   "userDetail.save": "Save",
+  "userDetail.confirmSaveTitle": "Save changes?",
+  "userDetail.confirmSaveDesc": "This account information will be updated.",
+  "userDetail.confirmSaveCancel": "Cancel",
+  "userDetail.confirmSaveAction": "Save",
   "userDetail.readOnly": "Read-only — you cannot edit this profile.",
 
   "register.toastSuccess": "Account created successfully",
@@ -644,6 +678,10 @@ export const messagesEnCore: Record<string, string> = {
   "register.password": "Password *",
   "register.passwordHint": "At least 8 characters.",
   "register.roleSigis": "SIGIS role *",
+  "register.confirmTitle": "Create this account?",
+  "register.confirmDesc": "The account will be active immediately and can sign in with the password you set.",
+  "register.confirmCancel": "Cancel",
+  "register.confirmAction": "Create account",
   "register.cancel": "Cancel",
   "register.submit": "Create account",
 

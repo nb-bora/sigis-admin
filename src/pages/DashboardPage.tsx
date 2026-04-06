@@ -21,6 +21,7 @@ import {
   RefreshCw,
   Compass,
   Radio,
+  KeyRound,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -30,6 +31,7 @@ import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
+import { sortQuickLinksByPath, tRoleAware } from "@/lib/personalization";
 
 const missionBarColor: Record<string, string> = {
   draft: "bg-slate-400 dark:bg-slate-500",
@@ -45,6 +47,7 @@ type QuickLink = {
   path: string;
   permission: Permission | "always";
   icon: typeof ClipboardList;
+  rolesOnly?: Role[];
 };
 
 const QUICK_DEFS: Array<{
@@ -53,11 +56,20 @@ const QUICK_DEFS: Array<{
   path: string;
   permission: Permission | "always";
   icon: typeof ClipboardList;
+  rolesOnly?: Role[];
 }> = [
   { labelKey: "dashboard.quick.missions", hintKey: "dashboard.quick.missionsHint", path: "/missions", permission: "MISSION_READ", icon: ClipboardList },
   { labelKey: "dashboard.quick.establishments", hintKey: "dashboard.quick.establishmentsHint", path: "/etablissements", permission: "ESTABLISHMENT_READ", icon: Building2 },
   { labelKey: "dashboard.quick.exceptions", hintKey: "dashboard.quick.exceptionsHint", path: "/signalements", permission: "EXCEPTION_READ", icon: AlertTriangle },
   { labelKey: "dashboard.quick.users", hintKey: "dashboard.quick.usersHint", path: "/utilisateurs", permission: "USER_LIST", icon: Users },
+  {
+    labelKey: "dashboard.quick.roles",
+    hintKey: "dashboard.quick.rolesHint",
+    path: "/roles",
+    permission: "always",
+    icon: KeyRound,
+    rolesOnly: ["SUPER_ADMIN", "NATIONAL_ADMIN"],
+  },
   { labelKey: "dashboard.quick.pilotage", hintKey: "dashboard.quick.pilotageHint", path: "/pilotage", permission: "REPORT_READ", icon: TrendingUp },
   { labelKey: "dashboard.quick.audit", hintKey: "dashboard.quick.auditHint", path: "/audit", permission: "AUDIT_READ", icon: FileSearch },
   {
@@ -69,6 +81,14 @@ const QUICK_DEFS: Array<{
   },
   { labelKey: "dashboard.quick.settings", hintKey: "dashboard.quick.settingsHint", path: "/parametres", permission: "always", icon: Sparkles },
 ];
+
+function kpiGridClass(n: number) {
+  if (n <= 0) return "hidden";
+  if (n === 1) return "grid-cols-1";
+  if (n === 2) return "grid-cols-1 sm:grid-cols-2";
+  if (n === 3) return "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3";
+  return "grid-cols-1 sm:grid-cols-2 lg:grid-cols-4";
+}
 
 function formatTime(iso: number, locale: AppLocale) {
   return new Intl.DateTimeFormat(locale === "fr" ? "fr-FR" : "en-GB", {
@@ -308,18 +328,76 @@ export default function DashboardPage() {
     retry: 1,
   });
 
-  const visibleQuick = quickLinkMeta.filter(
-    (l) => l.permission === "always" || hasPermission(l.permission),
+  const visibleQuick = useMemo(() => {
+    const filtered = quickLinkMeta.filter((l) => {
+      if (l.rolesOnly?.length && (!user || !l.rolesOnly.includes(user.role))) return false;
+      return l.permission === "always" || hasPermission(l.permission);
+    });
+    return sortQuickLinksByPath(filtered, role);
+  }, [quickLinkMeta, user, hasPermission, role]);
+
+  const showMissionChart = hasPermission("MISSION_READ");
+  const showExceptionChart = hasPermission("EXCEPTION_READ");
+
+  const kpiDefs = useMemo(
+    () =>
+      [
+        {
+          permission: "MISSION_READ" as const,
+          path: "/missions",
+          label: t("dashboard.stat.missions"),
+          tooltip: t("dashboard.tooltip.missions"),
+          icon: ClipboardList,
+          accentClass: "text-primary",
+          iconBgClass: "bg-primary/12",
+          value: data?.missions_total ?? 0,
+        },
+        {
+          permission: "ESTABLISHMENT_READ" as const,
+          path: "/etablissements",
+          label: t("dashboard.stat.establishments"),
+          tooltip: t("dashboard.tooltip.establishments"),
+          icon: Building2,
+          accentClass: "text-sky-700 dark:text-sky-300",
+          iconBgClass: "bg-sky-500/12",
+          value: data?.establishments_total ?? 0,
+        },
+        {
+          permission: "EXCEPTION_READ" as const,
+          path: "/signalements",
+          label: t("dashboard.stat.exceptions"),
+          tooltip: t("dashboard.tooltip.exceptions"),
+          icon: AlertTriangle,
+          accentClass: "text-amber-700 dark:text-amber-300",
+          iconBgClass: "bg-amber-500/12",
+          value: data?.exception_requests_total ?? 0,
+        },
+        {
+          permission: "USER_LIST" as const,
+          path: "/utilisateurs",
+          label: t("dashboard.stat.users"),
+          tooltip: t("dashboard.tooltip.users"),
+          icon: Users,
+          accentClass: "text-emerald-700 dark:text-emerald-300",
+          iconBgClass: "bg-emerald-500/12",
+          value: data?.users_total ?? 0,
+        },
+      ].filter((row) => hasPermission(row.permission)),
+    [t, data, hasPermission],
   );
 
   const missionStatusLabel = (s: string) => t(`mission.status.${s}`);
   const exceptionStatusLabel = (s: string) => t(`exception.status.${s}`);
 
+  const subtitleNoReport = tRoleAware(t, "dashboard.hero.subtitleNoReport", role, "dashboard.hero.subtitleNoReport");
+  const subtitleFull = tRoleAware(t, "dashboard.hero.subtitleFull", role, "dashboard.hero.subtitleFull");
+  const kpiHintPersonalized = tRoleAware(t, "dashboard.kpiHint", role, "dashboard.kpiHint");
+
   if (!hasPermission("REPORT_READ")) {
     return (
       <div className="animate-fade-in space-y-8">
         <DashboardHero
-          subtitle={t("dashboard.hero.subtitleNoReport")}
+          subtitle={subtitleNoReport}
           role={role}
           showDataRefresh={false}
           t={t}
@@ -371,7 +449,7 @@ export default function DashboardPage() {
   return (
     <div className="animate-fade-in space-y-8">
       <DashboardHero
-        subtitle={t("dashboard.hero.subtitleFull")}
+        subtitle={subtitleFull}
         role={role}
         dataUpdatedAt={dataUpdatedAt}
         isLoading={isLoading || isFetching}
@@ -379,65 +457,51 @@ export default function DashboardPage() {
         locale={locale}
       />
 
-      <section aria-labelledby="dashboard-kpi-heading">
-        <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <h2 id="dashboard-kpi-heading" className="text-lg font-semibold tracking-tight text-foreground">
-              {t("dashboard.kpiTitle")}
-            </h2>
-            <p className="mt-0.5 text-sm text-muted-foreground">{t("dashboard.kpiHint")}</p>
+      {kpiDefs.length > 0 && (
+        <section aria-labelledby="dashboard-kpi-heading">
+          <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h2 id="dashboard-kpi-heading" className="text-lg font-semibold tracking-tight text-foreground">
+                {t("dashboard.kpiTitle")}
+              </h2>
+              <p className="mt-0.5 text-sm text-muted-foreground">{kpiHintPersonalized}</p>
+            </div>
           </div>
-        </div>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {isLoading ? (
-            Array.from({ length: 4 }).map((_, i) => <StatSkeleton key={i} />)
-          ) : (
-            <>
-              <StatCard
-                label={t("dashboard.stat.missions")}
-                value={data?.missions_total ?? 0}
-                icon={ClipboardList}
-                accentClass="text-primary"
-                iconBgClass="bg-primary/12"
-                tooltip={t("dashboard.tooltip.missions")}
-                onClick={() => navigate("/missions")}
-              />
-              <StatCard
-                label={t("dashboard.stat.establishments")}
-                value={data?.establishments_total ?? 0}
-                icon={Building2}
-                accentClass="text-sky-700 dark:text-sky-300"
-                iconBgClass="bg-sky-500/12"
-                tooltip={t("dashboard.tooltip.establishments")}
-                onClick={() => navigate("/etablissements")}
-              />
-              <StatCard
-                label={t("dashboard.stat.exceptions")}
-                value={data?.exception_requests_total ?? 0}
-                icon={AlertTriangle}
-                accentClass="text-amber-700 dark:text-amber-300"
-                iconBgClass="bg-amber-500/12"
-                tooltip={t("dashboard.tooltip.exceptions")}
-                onClick={() => navigate("/signalements")}
-              />
-              <StatCard
-                label={t("dashboard.stat.users")}
-                value={data?.users_total ?? 0}
-                icon={Users}
-                accentClass="text-emerald-700 dark:text-emerald-300"
-                iconBgClass="bg-emerald-500/12"
-                tooltip={t("dashboard.tooltip.users")}
-                onClick={() => navigate("/utilisateurs")}
-              />
-            </>
-          )}
-        </div>
-      </section>
+          <div className={cn("grid gap-4", kpiGridClass(kpiDefs.length))}>
+            {isLoading ? (
+              Array.from({ length: kpiDefs.length }).map((_, i) => <StatSkeleton key={i} />)
+            ) : (
+              <>
+                {kpiDefs.map((row) => (
+                  <StatCard
+                    key={row.permission}
+                    label={row.label}
+                    value={row.value}
+                    icon={row.icon}
+                    accentClass={row.accentClass}
+                    iconBgClass={row.iconBgClass}
+                    tooltip={row.tooltip}
+                    onClick={() => navigate(row.path)}
+                  />
+                ))}
+              </>
+            )}
+          </div>
+        </section>
+      )}
 
-      <Separator className="my-2 bg-border/60" />
+      {(showMissionChart || showExceptionChart) && (
+        <>
+          <Separator className="my-2 bg-border/60" />
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <div
+            className={cn(
+              "grid grid-cols-1 gap-6",
+              showMissionChart && showExceptionChart && "lg:grid-cols-2",
+            )}
+          >
+            {showMissionChart && (
         <section aria-labelledby="missions-status-heading">
           <Card className="overflow-hidden rounded-2xl border-border/80 shadow-md">
             <CardHeader className="border-b border-border/50 bg-muted/20 pb-4">
@@ -511,7 +575,9 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
         </section>
+            )}
 
+            {showExceptionChart && (
         <section aria-labelledby="exceptions-status-heading">
           <Card className="overflow-hidden rounded-2xl border-border/80 shadow-md">
             <CardHeader className="border-b border-border/50 bg-muted/20 pb-4">
@@ -572,7 +638,10 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
         </section>
-      </div>
+            )}
+          </div>
+        </>
+      )}
 
       <Card className="rounded-2xl border border-primary/15 bg-gradient-to-br from-muted/40 to-card shadow-sm">
         <CardContent className="flex flex-col gap-5 py-6 sm:flex-row sm:items-center sm:justify-between">
@@ -590,6 +659,12 @@ export default function DashboardPage() {
             {hasPermission("AUDIT_READ") && (
               <Button type="button" variant="outline" onClick={() => navigate("/audit")}>
                 {t("dashboard.btnAudit")}
+                <ArrowRight className="h-4 w-4" aria-hidden />
+              </Button>
+            )}
+            {hasPermission("TELEMETRY_READ") && (
+              <Button type="button" variant="outline" onClick={() => navigate("/observabilite")}>
+                {t("dashboard.btnObservability")}
                 <ArrowRight className="h-4 w-4" aria-hidden />
               </Button>
             )}

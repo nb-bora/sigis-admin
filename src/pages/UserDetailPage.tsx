@@ -22,6 +22,7 @@ import { toast } from "sonner";
 import { useState, useEffect } from "react";
 import { ROLE_ORDER, roleBadge, roleDescription, roleLabel } from "@/lib/rbac";
 import { useLocale } from "@/lib/locale";
+import { ConfirmSubmitDialog } from "@/components/ConfirmSubmitDialog";
 
 const ROLES: Role[] = ROLE_ORDER;
 
@@ -29,7 +30,8 @@ export default function UserDetailPage() {
   const { t, locale } = useLocale();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { user: authUser, hasRole } = useAuth();
+  const { user: authUser, hasRole, hasPermission } = useAuth();
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   const formatCreatedAt = (iso: string): string => {
     if (!iso) return "—";
@@ -96,7 +98,7 @@ export default function UserDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="mx-auto max-w-2xl space-y-4 animate-fade-in">
+      <div className="w-full space-y-4 animate-fade-in">
         <Skeleton className="h-8 w-48 rounded-lg" />
         <Skeleton className="h-64 w-full rounded-2xl" />
       </div>
@@ -116,12 +118,27 @@ export default function UserDetailPage() {
   }
 
   return (
-    <div className="animate-fade-in mx-auto max-w-2xl space-y-8">
+    <div className="animate-fade-in w-full space-y-8">
+      <ConfirmSubmitDialog
+        open={confirmOpen}
+        onOpenChange={(o) => {
+          if (!saveMutation.isPending) setConfirmOpen(o);
+        }}
+        title={t("userDetail.confirmSaveTitle")}
+        description={t("userDetail.confirmSaveDesc")}
+        confirmLabel={t("userDetail.confirmSaveAction")}
+        cancelLabel={t("userDetail.confirmSaveCancel")}
+        confirmDisabled={saveMutation.isPending}
+        onConfirm={() => {
+          saveMutation.mutate();
+          setConfirmOpen(false);
+        }}
+      />
       <Button
         variant="ghost"
         size="sm"
         className="-ml-2 gap-1 text-muted-foreground hover:text-foreground"
-        onClick={() => navigate("/utilisateurs")}
+        onClick={() => navigate(hasPermission("USER_LIST") ? "/utilisateurs" : "/")}
       >
         <ArrowLeft className="h-4 w-4" aria-hidden />
         {t("userDetail.back")}
@@ -234,7 +251,7 @@ export default function UserDetailPage() {
             <div className="flex justify-end pt-2">
               <Button
                 className="h-11 min-w-[160px] rounded-xl"
-                onClick={() => saveMutation.mutate()}
+                onClick={() => setConfirmOpen(true)}
                 disabled={saveMutation.isPending}
               >
                 {saveMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />}

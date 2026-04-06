@@ -7,6 +7,8 @@ export const messagesFrCore: Record<string, string> = {
   // Shell auth
   "shell.brandSubtitle": "Traçabilité des missions d'inspection",
   "shell.footer": "MINESEC / MINSUB — République du Cameroun",
+  "shell.greetingNamed": "Bonjour, {name}",
+  "shell.greetingAnonymous": "Bienvenue",
 
   // Navigation
   "nav.dashboard": "Tableau de bord",
@@ -376,8 +378,28 @@ export const messagesFrCore: Record<string, string> = {
   "dashboard.hero.title": "Vue d’ensemble",
   "dashboard.hero.subtitleFull":
     "Volumes et répartition des missions et signalements. Cliquez sur un indicateur pour ouvrir la liste associée.",
+  "dashboard.hero.subtitleFull.SUPER_ADMIN":
+    "Vue globale : volumes, répartition et accès rapide vers les modules d’administration et de pilotage.",
+  "dashboard.hero.subtitleFull.NATIONAL_ADMIN":
+    "Pilotage national : suivez les volumes, priorisez les signalements et ouvrez les listes en un clic.",
+  "dashboard.hero.subtitleFull.REGIONAL_SUPERVISOR":
+    "Supervision régionale : missions, signalements et indicateurs alignés sur votre périmètre.",
+  "dashboard.hero.subtitleFull.INSPECTOR":
+    "Vos missions et le terrain : indicateurs utiles pour préparer et suivre vos visites.",
+  "dashboard.hero.subtitleFull.HOST":
+    "Accueil et missions qui vous concernent : repères simples pour le terrain.",
   "dashboard.hero.subtitleNoReport":
     "Bienvenue sur la plateforme de traçabilité des missions d’inspection. Les modules accessibles dépendent de votre rôle.",
+  "dashboard.hero.subtitleNoReport.SUPER_ADMIN":
+    "Espace administration : vos raccourcis reflètent vos droits. Activez le pilotage agrégé si la permission vous est accordée.",
+  "dashboard.hero.subtitleNoReport.NATIONAL_ADMIN":
+    "Espace national : accédez aux modules autorisés. Le tableau agrégé complet nécessite REPORT_READ.",
+  "dashboard.hero.subtitleNoReport.REGIONAL_SUPERVISOR":
+    "Espace supervision : concentrez-vous sur missions et signalements accessibles à votre rôle.",
+  "dashboard.hero.subtitleNoReport.INSPECTOR":
+    "Espace terrain : missions, établissements et signalements selon vos droits — le pilotage agrégé n’est pas disponible pour ce profil.",
+  "dashboard.hero.subtitleNoReport.HOST":
+    "Espace hôte : missions et accueil — l’interface s’adapte à votre rôle.",
   "dashboard.today": "Aujourd'hui",
   "dashboard.dataReady": "Prêt",
   "dashboard.dataLoading": "Chargement des indicateurs…",
@@ -385,6 +407,11 @@ export const messagesFrCore: Record<string, string> = {
   "dashboard.indicators": "Indicateurs",
   "dashboard.kpiTitle": "Indicateurs clés",
   "dashboard.kpiHint": "Un clic sur une carte ouvre la liste.",
+  "dashboard.kpiHint.SUPER_ADMIN": "Cartes cliquables — accès direct aux listes filtrées par indicateur.",
+  "dashboard.kpiHint.NATIONAL_ADMIN": "Priorisez un indicateur : un clic ouvre la liste correspondante.",
+  "dashboard.kpiHint.REGIONAL_SUPERVISOR": "Suivez l’activité : chaque carte mène à la liste opérationnelle.",
+  "dashboard.kpiHint.INSPECTOR": "Repères rapides : ouvrez missions, établissements ou signalements selon vos droits.",
+  "dashboard.kpiHint.HOST": "Vue synthétique : accédez aux listes autorisées pour votre rôle.",
   "dashboard.stat.missions": "Missions",
   "dashboard.stat.establishments": "Établissements",
   "dashboard.stat.exceptions": "Signalements",
@@ -417,6 +444,7 @@ export const messagesFrCore: Record<string, string> = {
     "Accédez au pilotage détaillé, aux journaux d'audit ou à vos paramètres en un geste.",
   "dashboard.btnPilotage": "Pilotage",
   "dashboard.btnAudit": "Audit",
+  "dashboard.btnObservability": "Observabilité",
   "dashboard.btnSettings": "Paramètres",
 
   "dashboard.quick.missions": "Missions",
@@ -435,6 +463,8 @@ export const messagesFrCore: Record<string, string> = {
   "dashboard.quick.observabilityHint": "Requêtes, événements et performances",
   "dashboard.quick.settings": "Paramètres",
   "dashboard.quick.settingsHint": "Profil et préférences",
+  "dashboard.quick.roles": "Rôles & permissions",
+  "dashboard.quick.rolesHint": "Matrice des droits par rôle",
 
   // Observabilité
   "observability.heroEyebrow": "Temps réel",
@@ -648,6 +678,10 @@ export const messagesFrCore: Record<string, string> = {
   "userDetail.accountActiveHint": "Un compte inactif ne peut plus se connecter.",
   "userDetail.roleSigis": "Rôle SIGIS",
   "userDetail.save": "Enregistrer",
+  "userDetail.confirmSaveTitle": "Enregistrer les modifications ?",
+  "userDetail.confirmSaveDesc": "Les informations de ce compte seront mises à jour.",
+  "userDetail.confirmSaveCancel": "Annuler",
+  "userDetail.confirmSaveAction": "Enregistrer",
   "userDetail.readOnly": "Lecture seule — vous ne pouvez pas modifier ce profil.",
 
   "register.toastSuccess": "Compte créé avec succès",
@@ -666,6 +700,10 @@ export const messagesFrCore: Record<string, string> = {
   "register.password": "Mot de passe *",
   "register.passwordHint": "Au moins 8 caractères.",
   "register.roleSigis": "Rôle SIGIS *",
+  "register.confirmTitle": "Créer ce compte ?",
+  "register.confirmDesc": "Le compte sera immédiatement actif et pourra se connecter avec le mot de passe défini.",
+  "register.confirmCancel": "Annuler",
+  "register.confirmAction": "Créer le compte",
   "register.cancel": "Annuler",
   "register.submit": "Créer le compte",
 

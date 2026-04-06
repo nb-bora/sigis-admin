@@ -42,6 +42,7 @@ import {
   localDatetimeToIso,
 } from "@/lib/datetime";
 import { FormStepper, FormStepperActions, type FormStepperStep } from "@/components/ui/form-stepper";
+import { ConfirmSubmitDialog } from "@/components/ConfirmSubmitDialog";
 
 function parseUuidOrNull(s: string): string | null {
   const t = s.trim();
@@ -51,6 +52,8 @@ function parseUuidOrNull(s: string): string | null {
 export default function CreateMissionPage() {
   const navigate = useNavigate();
   const { hasPermission } = useAuth();
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [pendingPayload, setPendingPayload] = useState<CreateMissionPayload | null>(null);
 
   const [establishmentId, setEstablishmentId] = useState<string>("");
   const [inspectorId, setInspectorId] = useState<string>("");
@@ -169,7 +172,8 @@ export default function CreateMissionPage() {
         });
         return;
       }
-      mutation.mutate(payload);
+      setPendingPayload(payload);
+      setConfirmOpen(true);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Date invalide");
     }
@@ -202,7 +206,24 @@ export default function CreateMissionPage() {
   const StepIcon = stepHeaders[step].Icon;
 
   return (
-    <div className="animate-fade-in mx-auto max-w-3xl space-y-8">
+    <div className="animate-fade-in w-full space-y-8">
+      <ConfirmSubmitDialog
+        open={confirmOpen}
+        onOpenChange={(o) => {
+          if (!mutation.isPending) setConfirmOpen(o);
+        }}
+        title="Créer cette mission ?"
+        description="La mission sera créée avec le statut initial renvoyé par l’API."
+        confirmLabel="Créer la mission"
+        cancelLabel="Annuler"
+        confirmDisabled={mutation.isPending || !pendingPayload}
+        onConfirm={() => {
+          if (!pendingPayload) return;
+          mutation.mutate(pendingPayload);
+          setConfirmOpen(false);
+          setPendingPayload(null);
+        }}
+      />
       <Button
         variant="ghost"
         size="sm"
@@ -225,7 +246,7 @@ export default function CreateMissionPage() {
           <div>
             <p className="text-xs font-medium uppercase tracking-widest text-primary/80">Création</p>
             <h1 className="mt-0.5 text-2xl font-bold tracking-tight text-foreground sm:text-3xl">Nouvelle mission</h1>
-            <p className="mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground">
+            <p className="mt-2 max-w-3xl text-sm leading-relaxed text-muted-foreground">
               Définissez l&apos;établissement, l&apos;inspecteur et la fenêtre horaire de visite. Les champs optionnels
               précisent le contexte et les modes de validation hôte.
             </p>

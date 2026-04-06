@@ -31,6 +31,7 @@ import {
   Hash,
 } from "lucide-react";
 import { toast } from "sonner";
+import { ConfirmSubmitDialog } from "@/components/ConfirmSubmitDialog";
 
 const TYPE_OPTIONS: { value: string; label: string }[] = [
   { value: "lycee", label: "Lycée" },
@@ -50,6 +51,8 @@ export default function CreateEstablishmentPage() {
   const navigate = useNavigate();
   const { hasPermission } = useAuth();
   const [step, setStep] = useState(0);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [pendingPayload, setPendingPayload] = useState<CreateEstablishmentPayload | null>(null);
 
   const [name, setName] = useState("");
   const [establishmentType, setEstablishmentType] = useState("other");
@@ -179,11 +182,29 @@ export default function CreateEstablishmentPage() {
       parent_establishment_id: parseUuidOrNull(parentId),
       designated_host_user_id: parseUuidOrNull(hostUserId),
     };
-    mutation.mutate(payload);
+    setPendingPayload(payload);
+    setConfirmOpen(true);
   };
 
   return (
-    <div className="animate-fade-in mx-auto max-w-3xl space-y-8">
+    <div className="animate-fade-in w-full space-y-8">
+      <ConfirmSubmitDialog
+        open={confirmOpen}
+        onOpenChange={(o) => {
+          if (!mutation.isPending) setConfirmOpen(o);
+        }}
+        title="Créer cet établissement ?"
+        description="Une fois créé, il sera disponible dans les listes et pourra être utilisé pour planifier des missions."
+        confirmLabel="Créer"
+        cancelLabel="Annuler"
+        confirmDisabled={mutation.isPending}
+        onConfirm={() => {
+          if (!pendingPayload) return;
+          mutation.mutate(pendingPayload);
+          setConfirmOpen(false);
+          setPendingPayload(null);
+        }}
+      />
       <Button
         variant="ghost"
         size="sm"
@@ -206,7 +227,7 @@ export default function CreateEstablishmentPage() {
           <div>
             <p className="text-xs font-medium uppercase tracking-widest text-primary/80">Création</p>
             <h1 className="mt-0.5 text-2xl font-bold tracking-tight text-foreground sm:text-3xl">Nouvel établissement</h1>
-            <p className="mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground">
+            <p className="mt-2 max-w-3xl text-sm leading-relaxed text-muted-foreground">
               Enregistrez la fiche géographique : centre GPS, géofence en deux cercles, puis contacts et liens
               hiérarchiques si besoin.
             </p>
@@ -354,8 +375,10 @@ export default function CreateEstablishmentPage() {
                 </div>
               </div>
               <p className="rounded-xl border border-border/60 bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
-                Le rayon strict définit la zone de <span className="font-medium text-foreground">présence confirmée</span>
-                ; la couronne jusqu&apos;au rayon élargi correspond à une <span className="font-medium text-foreground">présence probable</span>.
+                Le rayon strict définit la zone de{" "}
+                <span className="font-medium text-foreground">présence confirmée</span> ; la couronne jusqu&apos;au
+                rayon élargi correspond à une{" "}
+                <span className="font-medium text-foreground">présence probable</span>.
               </p>
             </div>
 

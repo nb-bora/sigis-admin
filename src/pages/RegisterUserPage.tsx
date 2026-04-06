@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Navigate, useNavigate } from "react-router-dom";
 import { useMutation } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
@@ -16,10 +16,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ArrowLeft, Loader2, UserPlus, Shield } from "lucide-react";
-import { Navigate } from "react-router-dom";
 import { toast } from "sonner";
 import { ROLE_ORDER, roleBadge, roleDescription, roleLabel } from "@/lib/rbac";
 import { useLocale } from "@/lib/locale";
+import { ConfirmSubmitDialog } from "@/components/ConfirmSubmitDialog";
 
 const ROLES: Role[] = ROLE_ORDER;
 
@@ -27,6 +27,8 @@ export default function RegisterUserPage() {
   const { t } = useLocale();
   const navigate = useNavigate();
   const { hasPermission } = useAuth();
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [pendingPayload, setPendingPayload] = useState<RegisterUserPayload | null>(null);
 
   const [email, setEmail] = useState("");
   const [fullName, setFullName] = useState("");
@@ -54,17 +56,36 @@ export default function RegisterUserPage() {
       toast.error(t("register.toastPassword"));
       return;
     }
-    mutation.mutate({
+    const payload: RegisterUserPayload = {
       email: email.trim().toLowerCase(),
       full_name: fullName.trim(),
       phone_number: phone.trim(),
       password,
       role,
-    });
+    };
+    setPendingPayload(payload);
+    setConfirmOpen(true);
   };
 
   return (
-    <div className="animate-fade-in mx-auto max-w-lg space-y-8">
+    <div className="animate-fade-in w-full space-y-8">
+      <ConfirmSubmitDialog
+        open={confirmOpen}
+        onOpenChange={(o) => {
+          if (!mutation.isPending) setConfirmOpen(o);
+        }}
+        title={t("register.confirmTitle")}
+        description={t("register.confirmDesc")}
+        confirmLabel={t("register.confirmAction")}
+        cancelLabel={t("register.confirmCancel")}
+        confirmDisabled={mutation.isPending}
+        onConfirm={() => {
+          if (!pendingPayload) return;
+          mutation.mutate(pendingPayload);
+          setConfirmOpen(false);
+          setPendingPayload(null);
+        }}
+      />
       <Button
         variant="ghost"
         size="sm"
@@ -87,7 +108,7 @@ export default function RegisterUserPage() {
           <div>
             <p className="text-xs font-medium uppercase tracking-widest text-primary/80">{t("register.eyebrow")}</p>
             <h1 className="mt-0.5 text-2xl font-bold tracking-tight text-foreground sm:text-3xl">{t("register.title")}</h1>
-            <p className="mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground">{t("register.subtitle")}</p>
+            <p className="mt-2 max-w-3xl text-sm leading-relaxed text-muted-foreground">{t("register.subtitle")}</p>
           </div>
         </div>
       </header>

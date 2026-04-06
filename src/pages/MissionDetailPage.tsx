@@ -1,6 +1,6 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import type {
@@ -39,6 +39,7 @@ import {
 } from "lucide-react";
 import { isoToLocalDatetime, localDatetimeToIso } from "@/lib/datetime";
 import { cn } from "@/lib/utils";
+import { ConfirmSubmitDialog } from "@/components/ConfirmSubmitDialog";
 
 const statusLabels: Record<MissionStatusApi, string> = {
   draft: "Brouillon",
@@ -85,6 +86,11 @@ export default function MissionDetailPage() {
   const navigate = useNavigate();
   const { hasPermission } = useAuth();
   const queryClient = useQueryClient();
+  const confirmActionRef = useRef<null | (() => void)>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmTitle, setConfirmTitle] = useState("");
+  const [confirmDesc, setConfirmDesc] = useState<string | null>(null);
+  const [confirmConfirmLabel, setConfirmConfirmLabel] = useState("Confirmer");
   const [cancelReason, setCancelReason] = useState("");
   const [showCancel, setShowCancel] = useState(false);
   const [newInspectorId, setNewInspectorId] = useState("");
@@ -108,7 +114,11 @@ export default function MissionDetailPage() {
 
   const { data: establishment } = useQuery({
     queryKey: ["establishment", mission?.establishment_id],
-    queryFn: () => api.get<Establishment>(`/establishments/${mission!.establishment_id}`),
+    queryFn: () => {
+      const eid = mission?.establishment_id;
+      if (!eid) throw new Error("Missing establishment id");
+      return api.get<Establishment>(`/establishments/${eid}`);
+    },
     enabled: !!mission?.establishment_id && hasPermission("ESTABLISHMENT_READ"),
   });
 
@@ -245,7 +255,11 @@ export default function MissionDetailPage() {
         sms_code: editSms.trim() || null,
         designated_host_user_id: editDesignatedHost.trim() || null,
       };
-      updateMutation.mutate(body);
+      confirmActionRef.current = () => updateMutation.mutate(body);
+      setConfirmTitle("Enregistrer ces modifications ?");
+      setConfirmDesc("Les informations de la mission seront mises à jour.");
+      setConfirmConfirmLabel("Enregistrer");
+      setConfirmOpen(true);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Dates invalides");
     }
@@ -253,7 +267,7 @@ export default function MissionDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="animate-fade-in mx-auto max-w-4xl space-y-6">
+      <div className="animate-fade-in w-full space-y-6">
         <Skeleton className="h-10 w-40 rounded-lg" />
         <Skeleton className="h-40 w-full rounded-2xl" />
         <Skeleton className="h-64 w-full rounded-2xl" />
@@ -276,15 +290,42 @@ export default function MissionDetailPage() {
     hasPermission("MISSION_OUTCOME_WRITE") && outcomeResolved && outcome === null;
   const canEdit =
     hasPermission("MISSION_UPDATE") && mission.status !== "cancelled" && mission.status !== "completed";
+  const anyPending =
+    approveMutation.isPending ||
+    updateMutation.isPending ||
+    cancelMutation.isPending ||
+    reassignMutation.isPending ||
+    outcomeMutation.isPending ||
+    hostQrMutation.isPending;
 
-  const title = mission.objective?.trim()
-    ? mission.objective.length > 120
-      ? `${mission.objective.slice(0, 120)}…`
-      : mission.objective
-    : `Mission ${mission.id.slice(0, 8)}…`;
+  const objectiveTrimmed = mission.objective?.trim() ?? "";
+  let title: string;
+  if (!objectiveTrimmed) {
+    title = `Mission ${mission.id.slice(0, 8)}…`;
+  } else if (objectiveTrimmed.length > 120) {
+    title = `${objectiveTrimmed.slice(0, 120)}…`;
+  } else {
+    title = objectiveTrimmed;
+  }
 
   return (
-    <div className="animate-fade-in mx-auto max-w-4xl space-y-8">
+    <div className="animate-fade-in w-full space-y-8">
+      <ConfirmSubmitDialog
+        open={confirmOpen}
+        onOpenChange={(o) => {
+          if (!anyPending) setConfirmOpen(o);
+        }}
+        title={confirmTitle}
+        description={confirmDesc}
+        confirmLabel={confirmConfirmLabel}
+        cancelLabel="Annuler"
+        confirmDisabled={anyPending}
+        onConfirm={() => {
+          confirmActionRef.current?.();
+          confirmActionRef.current = null;
+          setConfirmOpen(false);
+        }}
+      />
       <Button
         variant="ghost"
         size="sm"
