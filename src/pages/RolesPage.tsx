@@ -9,7 +9,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
@@ -88,11 +87,30 @@ export default function RolesPage() {
         await api.delete(`/roles/${role}/permissions/${encodeURIComponent(perm)}`);
       }
     },
+    onMutate: async (v) => {
+      await queryClient.cancelQueries({ queryKey: ["roles-permissions"] });
+      const previous = queryClient.getQueryData<RolesPermissionsMap>(["roles-permissions"]);
+
+      if (previous) {
+        const next: RolesPermissionsMap = { ...previous };
+        const current = new Set(next[v.role] ?? []);
+        if (v.grant) current.add(v.perm);
+        else current.delete(v.perm);
+        next[v.role] = Array.from(current).sort();
+        queryClient.setQueryData(["roles-permissions"], next);
+      }
+
+      return { previous };
+    },
     onSuccess: (_, v) => {
       invalidate();
       toast.success(v.grant ? t("roles.toastGrant") : t("roles.toastRevoke"));
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error, _v, ctx) => {
+      if (ctx?.previous) queryClient.setQueryData(["roles-permissions"], ctx.previous);
+      toast.error(e.message);
+    },
+    onSettled: () => invalidate(),
   });
 
   const resetMutation = useMutation({
@@ -125,6 +143,37 @@ export default function RolesPage() {
     const current = hasPerm(role, perm);
     if (next === current) return;
     toggleMutation.mutate({ role, perm, grant: next });
+  };
+
+  const ToggleCell = ({
+    role,
+    perm,
+    label,
+  }: {
+    role: Role;
+    perm: string;
+    label: string;
+  }) => {
+    const on = hasPerm(role, perm);
+    const disabled = toggleMutation.isPending;
+    return (
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => handleToggle(role, perm, !on)}
+        aria-label={`${roleLabel(role, t)} — ${label}`}
+        aria-pressed={on}
+        className={cn(
+          "inline-flex h-8 w-8 items-center justify-center rounded-full border text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+          disabled && "cursor-not-allowed opacity-60",
+          on
+            ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/15 dark:text-emerald-400"
+            : "border-border/60 bg-muted/30 text-muted-foreground hover:bg-muted/45",
+        )}
+      >
+        {on ? <Check className="h-4 w-4" strokeWidth={2.5} /> : <Minus className="h-4 w-4" />}
+      </button>
+    );
   };
 
   if (!allowed) {
@@ -266,12 +315,7 @@ export default function RolesPage() {
                                 <td key={`${r}-${perm}`} className="px-1 py-2 text-center align-middle">
                                   {canEditMatrix ? (
                                     <div className="flex justify-center">
-                                      <Checkbox
-                                        checked={on}
-                                        disabled={toggleMutation.isPending}
-                                        onCheckedChange={(c) => handleToggle(r, perm, c === true)}
-                                        aria-label={`${roleLabel(r, t)} — ${plabel}`}
-                                      />
+                                      <ToggleCell role={r} perm={perm} label={plabel} />
                                     </div>
                                   ) : (
                                     <span
