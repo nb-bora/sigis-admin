@@ -4,7 +4,7 @@ import { tracker } from "@/lib/observability/tracker";
 const API_PREFIX = "/v1";
 
 /** URL du backend (sans slash final). */
-const DEFAULT_PRODUCTION_API = "http://localhost:8000";
+const DEFAULT_PRODUCTION_API = "https://briceincode-sigis-backend.hf.space";
 
 /**
  * En dev : même origine + proxy Vite (`/v1` → localhost:8000), pas besoin de CORS.
