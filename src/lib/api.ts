@@ -102,8 +102,26 @@ class ApiClient {
     }
 
     if (res.status === 401) {
-      this.onUnauthorized?.();
-      throw new Error(translate(getStoredLocale(), "api.sessionExpired"));
+      // Ne force un logout que si on avait déjà un token.
+      // Cas à ne pas considérer "session expirée" : tentative de login ou events de telemetry.
+      if (this.token && !path.startsWith("/auth/login") && !path.startsWith("/telemetry")) {
+        this.onUnauthorized?.();
+        throw new Error(translate(getStoredLocale(), "api.sessionExpired"));
+      }
+
+      let body: unknown;
+      try {
+        body = await res.json();
+      } catch {
+        body = null;
+      }
+      const msg =
+        messageFromErrorBody(body) ||
+        translate(getStoredLocale(), "api.httpError", {
+          status: res.status,
+          statusText: res.statusText,
+        });
+      throw new Error(msg);
     }
 
     if (!res.ok) {
